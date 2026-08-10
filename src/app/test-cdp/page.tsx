@@ -12,6 +12,17 @@ export default function TestCDP() {
     setResult("");
     
     try {
+      // Vérifier que l'extension Chrome est disponible
+      if (
+        typeof chrome === "undefined" ||
+        !chrome.runtime ||
+        !chrome.runtime.sendMessage
+      ) {
+        setResult("Erreur: Extension Chrome non disponible. Cette page doit être ouverte avec l'extension installée.");
+        setLoading(false);
+        return;
+      }
+      
       // Envoyer un message à l'extension pour tester CDP
       const response = await chrome.runtime.sendMessage({
         type: "INJECT_INTERVENTION",
