@@ -64,7 +64,10 @@ export default function InterventionPanel({
         setTimeout(() => setCopiedId(null), 2000);
       }
     } catch (error) {
-      console.error("Erreur d'envoi à l'extension:", error);
+      const message = error instanceof Error
+        ? error.message
+        : String(error);
+      console.error("Erreur d'envoi à l'extension:", message);
       // Fallback: copier dans le presse-papier
       await navigator.clipboard.writeText(interventionContent);
       setCopiedId(id);

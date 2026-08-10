@@ -108,7 +108,10 @@ export async function POST(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*");
     return response;
   } catch (error) {
-    console.log("[RECEIVE-MESSAGE] CATCH ERROR:", error);
+    const message = error instanceof Error
+      ? error.message
+      : String(error);
+    console.log("[RECEIVE-MESSAGE] CATCH ERROR:", message);
     const response = NextResponse.json({ error: "Requête invalide" }, { status: 400 });
     response.headers.set("Access-Control-Allow-Origin", "*");
     return response;

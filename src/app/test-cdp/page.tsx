@@ -31,7 +31,11 @@ export default function TestCDP() {
       
       setResult(JSON.stringify(response, null, 2));
     } catch (error) {
-      setResult(`Erreur: ${error.message}`);
+      const message = error instanceof Error
+        ? error.message
+        : String(error);
+
+      setResult(`Erreur: ${message}`);
     }
     
     setLoading(false);

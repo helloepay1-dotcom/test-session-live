@@ -51,7 +51,10 @@ export async function GET(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*");
     return response;
   } catch (error) {
-    console.log("[POLL-MESSAGES] CATCH ERROR:", error);
+    const message = error instanceof Error
+      ? error.message
+      : String(error);
+    console.log("[POLL-MESSAGES] CATCH ERROR:", message);
     const response = NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
     response.headers.set("Access-Control-Allow-Origin", "*");
     return response;

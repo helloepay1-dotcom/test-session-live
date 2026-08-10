@@ -50,9 +50,12 @@ export async function POST(request: NextRequest) {
     return response;
     
   } catch (error) {
-    console.error("Erreur Puppeteer:", error);
+    const message = error instanceof Error
+      ? error.message
+      : String(error);
+    console.error("Erreur Puppeteer:", message);
     const response = NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Erreur lors de l'envoi" 
+      error: message 
     }, { status: 500 });
     response.headers.set("Access-Control-Allow-Origin", "*");
     return response;

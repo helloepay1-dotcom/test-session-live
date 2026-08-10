@@ -351,7 +351,10 @@ export default function SessionPage() {
         console.error("Erreur API OpenAI:", await response.json());
       }
     } catch (error) {
-      console.error("Erreur d'envoi à ChatGPT:", error);
+      const message = error instanceof Error
+        ? error.message
+        : String(error);
+      console.error("Erreur d'envoi à ChatGPT:", message);
     }
   }, []);
 

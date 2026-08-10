@@ -65,7 +65,10 @@ const testScript = `(function() {
     }, 100);
 
   } catch (error) {
-    console.error("❌ Erreur:", error);
+    const message = error instanceof Error
+      ? error.message
+      : String(error);
+    console.error("❌ Erreur:", message);
   }
 })();`;
 
