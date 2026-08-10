@@ -11,34 +11,24 @@ export async function POST(request: NextRequest) {
     const expectedKey = process.env.API_SECRET_KEY;
     if (!expectedKey || api_key !== expectedKey) {
       console.log("[RECEIVE-MESSAGE] ERROR: Invalid API key");
-      return NextResponse.json(
-        { error: "Clé API invalide" },
-        { status: 401 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
-      );
+      const response = NextResponse.json({ error: "Clé API invalide" }, { status: 401 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     // Validate required fields
     if (!session_id || !contenu || !role) {
       console.log("[RECEIVE-MESSAGE] ERROR: Missing required fields");
-      return NextResponse.json(
-        { error: "Champs requis : session_id, contenu, role" },
-        { 
-          status: 400,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: "Champs requis : session_id, contenu, role" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     if (!["utilisateur", "assistant"].includes(role)) {
       console.log("[RECEIVE-MESSAGE] ERROR: Invalid role");
-      return NextResponse.json(
-        { error: "role doit être 'utilisateur' ou 'assistant'" },
-        { 
-          status: 400,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: "role doit être 'utilisateur' ou 'assistant'" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     // Use direct Supabase REST API
@@ -60,37 +50,25 @@ export async function POST(request: NextRequest) {
 
     if (!sessionResponse.ok) {
       console.log("[RECEIVE-MESSAGE] ERROR: Supabase connection failed");
-      return NextResponse.json(
-        { error: "Erreur de connexion Supabase" },
-        { 
-          status: 500,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: "Erreur de connexion Supabase" }, { status: 500 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const sessions = await sessionResponse.json();
     if (!sessions || sessions.length === 0) {
       console.log("[RECEIVE-MESSAGE] ERROR: Session not found");
-      return NextResponse.json(
-        { error: "Session introuvable" },
-        { 
-          status: 404,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: "Session introuvable" }, { status: 404 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const session = sessions[0];
     if (session.statut !== "actif") {
       console.log("[RECEIVE-MESSAGE] ERROR: Session inactive");
-      return NextResponse.json(
-        { error: "Session terminée" },
-        { 
-          status: 410,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: "Session terminée" }, { status: 410 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     console.log("[RECEIVE-MESSAGE] Session validated, inserting message...");
@@ -118,33 +96,22 @@ export async function POST(request: NextRequest) {
     if (!messageResponse.ok) {
       const error = await messageResponse.json();
       console.log("[RECEIVE-MESSAGE] ERROR: Insert failed", error);
-      return NextResponse.json(
-        { error: error.message || "Erreur d'insertion" },
-        { 
-          status: 500,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
-      );
+      const response = NextResponse.json({ error: error.message || "Erreur d'insertion" }, { status: 500 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const message = await messageResponse.json();
     console.log("[RECEIVE-MESSAGE] SUCCESS: Message inserted", message);
     
-    return NextResponse.json({ success: true, message }, { 
-      status: 201,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-      }
-    });
+    const response = NextResponse.json({ success: true, message }, { status: 201 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   } catch (error) {
     console.log("[RECEIVE-MESSAGE] CATCH ERROR:", error);
-    return NextResponse.json(
-      { error: "Requête invalide" },
-      { 
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" } 
-      }
-    );
+    const response = NextResponse.json({ error: "Requête invalide" }, { status: 400 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }
 

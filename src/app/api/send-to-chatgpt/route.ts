@@ -6,10 +6,12 @@ export async function POST(request: NextRequest) {
     const { content, apiKey } = body;
 
     if (!content || !apiKey) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Content et API key requis" },
         { status: 400 }
       );
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     // Envoyer à l'API OpenAI
@@ -37,31 +39,29 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const error = await response.json();
-      return NextResponse.json(
+      const errorResponse = NextResponse.json(
         { error: error.error?.message || "Erreur OpenAI" },
-        { 
-          status: response.status,
-          headers: { "Access-Control-Allow-Origin": "*" } 
-        }
+        { status: response.status }
       );
+      errorResponse.headers.set("Access-Control-Allow-Origin", "*");
+      return errorResponse;
     }
 
     const data = await response.json();
     
-    return NextResponse.json({ 
+    const successResponse = NextResponse.json({ 
       success: true, 
       response: data.choices[0].message.content 
-    }, {
-      headers: { "Access-Control-Allow-Origin": "*" }
     });
+    successResponse.headers.set("Access-Control-Allow-Origin", "*");
+    return successResponse;
 
   } catch {
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: "Erreur de traitement" },
-      { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": "*" } 
-      }
+      { status: 500 }
     );
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }

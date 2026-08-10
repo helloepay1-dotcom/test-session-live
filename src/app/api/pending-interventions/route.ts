@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get("session_id");
 
     if (!sessionId) {
-      return NextResponse.json({ error: "Session ID requis" }, { status: 400 });
+      const response = NextResponse.json({ error: "Session ID requis" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const supabase = createServerClient();
@@ -22,19 +24,17 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": "*" } 
-      });
+      const response = NextResponse.json({ error: error.message }, { status: 500 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
-    return NextResponse.json({ interventions: interventions || [] }, {
-      headers: { "Access-Control-Allow-Origin": "*" }
-    });
+    const response = NextResponse.json({ interventions: interventions || [] });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   } catch {
-    return NextResponse.json({ error: "Erreur de traitement" }, { 
-      status: 500,
-      headers: { "Access-Control-Allow-Origin": "*" } 
-    });
+    const response = NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }

@@ -7,7 +7,9 @@ export async function POST(request: NextRequest) {
     const { message } = body;
 
     if (!message) {
-      return NextResponse.json({ error: "Message requis" }, { status: 400 });
+      const response = NextResponse.json({ error: "Message requis" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     // Lancer Puppeteer
@@ -43,17 +45,16 @@ export async function POST(request: NextRequest) {
     // Fermer le navigateur
     await browser.close();
     
-    return NextResponse.json({ success: true, message: "Message envoyé à ChatGPT via Puppeteer" }, {
-      headers: { "Access-Control-Allow-Origin": "*" }
-    });
+    const response = NextResponse.json({ success: true, message: "Message envoyé à ChatGPT via Puppeteer" });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
     
   } catch (error) {
     console.error("Erreur Puppeteer:", error);
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       error: error instanceof Error ? error.message : "Erreur lors de l'envoi" 
-    }, { 
-      status: 500,
-      headers: { "Access-Control-Allow-Origin": "*" } 
-    });
+    }, { status: 500 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }

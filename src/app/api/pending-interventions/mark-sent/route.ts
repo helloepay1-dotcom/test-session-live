@@ -7,7 +7,9 @@ export async function POST(request: NextRequest) {
     const { id } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "ID requis" }, { status: 400 });
+      const response = NextResponse.json({ error: "ID requis" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const supabase = createServerClient();
@@ -19,19 +21,17 @@ export async function POST(request: NextRequest) {
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": "*" } 
-      });
+      const response = NextResponse.json({ error: error.message }, { status: 500 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
-    return NextResponse.json({ success: true }, {
-      headers: { "Access-Control-Allow-Origin": "*" }
-    });
+    const response = NextResponse.json({ success: true });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   } catch {
-    return NextResponse.json({ error: "Erreur de traitement" }, { 
-      status: 500,
-      headers: { "Access-Control-Allow-Origin": "*" } 
-    });
+    const response = NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }

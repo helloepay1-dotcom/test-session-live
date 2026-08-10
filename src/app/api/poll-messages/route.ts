@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
 
     if (!sessionId) {
       console.log("[POLL-MESSAGES] ERROR: No sessionId provided");
-      return NextResponse.json({ error: "Session ID requis" }, { status: 400 });
+      const response = NextResponse.json({ error: "Session ID requis" }, { status: 400 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     const supabase = createServerClient();
@@ -37,27 +39,22 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.log("[POLL-MESSAGES] ERROR:", error);
-      return NextResponse.json({ error: error.message }, { 
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": "*" } 
-      });
+      const response = NextResponse.json({ error: error.message }, { status: 500 });
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      return response;
     }
 
     console.log("[POLL-MESSAGES] Messages found:", messages?.length || 0);
     console.log("[POLL-MESSAGES] Messages:", messages);
 
-    return NextResponse.json({ messages: messages || [] }, { 
-      status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-      }
-    });
+    const response = NextResponse.json({ messages: messages || [] }, { status: 200 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   } catch (error) {
     console.log("[POLL-MESSAGES] CATCH ERROR:", error);
-    return NextResponse.json({ error: "Erreur de traitement" }, { 
-      status: 500,
-      headers: { "Access-Control-Allow-Origin": "*" } 
-    });
+    const response = NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    return response;
   }
 }
 
