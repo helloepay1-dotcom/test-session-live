@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import archiver from "archiver";
+import archiver = require("archiver");
 import path from "path";
 import { Readable } from "stream";
 
