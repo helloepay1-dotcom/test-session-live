@@ -1,41 +1,37 @@
 import { NextResponse } from "next/server";
-import { archiver } from "archiver";
+import fs from "fs";
 import path from "path";
-import { Readable } from "stream";
+import { execSync } from "child_process";
 
 export async function GET() {
   try {
-    // Créer un stream ZIP
-    const archive = archiver("zip", {
-      zlib: { level: 9 }, // Compression maximale
-    });
-
-    // Créer un stream de réponse
-    const response = new NextResponse(
-      new Readable({
-        read() {
-          // Pass-through stream
-        },
-      }),
-      {
-        headers: {
-          "Content-Type": "application/zip",
-          "Content-Disposition": "attachment; filename=ai-session-live-extension.zip",
-        },
-      }
-    );
-
-    // Pipe l'archive vers la réponse
-    archive.pipe(response as any);
-
-    // Ajouter tous les fichiers du dossier chrome-extension
+    // Générer le ZIP dynamiquement en utilisant archiver via Node.js
     const extensionPath = path.join(process.cwd(), "chrome-extension");
-    archive.directory(extensionPath, false);
+    const zipPath = path.join(process.cwd(), "chrome-extension.zip");
 
-    // Finaliser l'archive
+    // Utiliser archiver pour créer le ZIP
+    const archiver = require("archiver");
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    archive.pipe(output);
+    archive.directory(extensionPath, false);
     await archive.finalize();
 
-    return response;
+    // Attendre que le ZIP soit créé
+    await new Promise((resolve) => {
+      output.on("close", resolve);
+    });
+
+    // Lire et envoyer le ZIP
+    const zipBuffer = fs.readFileSync(zipPath);
+
+    return new NextResponse(zipBuffer, {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": "attachment; filename=ai-session-live-extension.zip",
+      },
+    });
   } catch (error) {
     const message = error instanceof Error
       ? error.message
