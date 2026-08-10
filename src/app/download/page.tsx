@@ -14,7 +14,7 @@ export default function DownloadPage() {
         </p>
 
         <a
-          href="/download/route"
+          href="/api/download-extension"
           download="ai-session-live-extension.zip"
           className="inline-block w-full py-3 bg-accent hover:bg-accent-hover text-white font-medium rounded-xl transition-colors mb-4"
         >
