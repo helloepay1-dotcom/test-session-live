@@ -1,30 +1,44 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
+import { Readable } from "stream";
 
 export async function GET() {
   try {
-    // Générer le ZIP dynamiquement en utilisant archiver via Node.js
-    const extensionPath = path.join(process.cwd(), "chrome-extension");
-    const zipPath = path.join(process.cwd(), "chrome-extension.zip");
-
-    // Utiliser archiver pour créer le ZIP
+    // Créer un stream ZIP en mémoire
     const archiver = require("archiver");
-    const output = fs.createWriteStream(zipPath);
     const archive = archiver("zip");
 
-    archive.pipe(output);
-    archive.directory(extensionPath, false);
-    await archive.finalize();
-
-    // Attendre que le ZIP soit créé
-    await new Promise<void>((resolve) => {
-      output.on("close", () => resolve());
+    // Créer un buffer pour stocker le ZIP
+    const chunks: Buffer[] = [];
+    const output = new Readable({
+      read() {
+        // Pass-through stream
+      },
     });
 
-    // Lire et envoyer le ZIP
-    const zipBuffer = fs.readFileSync(zipPath);
+    // Capturer les données du ZIP
+    archive.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    // Attendre que l'archive soit finalisée
+    await new Promise<void>((resolve) => {
+      archive.on("end", () => resolve());
+    });
+
+    // Ajouter tous les fichiers du dossier chrome-extension
+    const extensionPath = path.join(process.cwd(), "chrome-extension");
+    archive.directory(extensionPath, false);
+
+    // Finaliser l'archive
+    archive.finalize();
+
+    // Attendre un petit délai pour s'assurer que l'archive est complète
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Combiner tous les chunks en un seul buffer
+    const zipBuffer = Buffer.concat(chunks);
 
     return new NextResponse(zipBuffer, {
       headers: {
