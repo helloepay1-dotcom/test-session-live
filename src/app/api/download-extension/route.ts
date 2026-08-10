@@ -19,8 +19,8 @@ export async function GET() {
     await archive.finalize();
 
     // Attendre que le ZIP soit créé
-    await new Promise((resolve) => {
-      output.on("close", resolve);
+    await new Promise<void>((resolve) => {
+      output.on("close", () => resolve());
     });
 
     // Lire et envoyer le ZIP
