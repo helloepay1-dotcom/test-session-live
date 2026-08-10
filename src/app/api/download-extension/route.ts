@@ -1,49 +1,64 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { Readable } from "stream";
 
 export async function GET() {
   try {
-    // Créer un stream ZIP en mémoire
-    const archiver = require("archiver");
+    // Import dynamique d'archiver pour éviter les problèmes de compatibilité
+    const { default: archiver } = await import("archiver");
+
+    // Créer un buffer pour stocker le ZIP en mémoire
+    const chunks: Buffer[] = [];
+
+    // Créer l'archive ZIP
     const archive = archiver("zip");
 
-    // Créer un buffer pour stocker le ZIP
-    const chunks: Buffer[] = [];
-    const output = new Readable({
-      read() {
-        // Pass-through stream
-      },
-    });
-
-    // Capturer les données du ZIP
+    // Capturer les données de l'archive
     archive.on("data", (chunk: Buffer) => {
       chunks.push(chunk);
     });
 
-    // Attendre que l'archive soit finalisée
-    await new Promise<void>((resolve) => {
+    // Créer une Promise pour attendre la fin de l'archive
+    const archivePromise = new Promise<void>((resolve, reject) => {
       archive.on("end", () => resolve());
+      archive.on("error", reject);
     });
 
     // Ajouter tous les fichiers du dossier chrome-extension
     const extensionPath = path.join(process.cwd(), "chrome-extension");
+    
+    // Vérifier que le dossier existe
+    if (!fs.existsSync(extensionPath)) {
+      return NextResponse.json(
+        { error: "Dossier chrome-extension non trouvé" },
+        { status: 404 }
+      );
+    }
+
     archive.directory(extensionPath, false);
 
     // Finaliser l'archive
     archive.finalize();
 
-    // Attendre un petit délai pour s'assurer que l'archive est complète
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Attendre que l'archive soit terminée
+    await archivePromise;
 
     // Combiner tous les chunks en un seul buffer
     const zipBuffer = Buffer.concat(chunks);
+
+    // Vérifier que le ZIP n'est pas vide
+    if (zipBuffer.length === 0) {
+      return NextResponse.json(
+        { error: "ZIP vide ou création échouée" },
+        { status: 500 }
+      );
+    }
 
     return new NextResponse(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": "attachment; filename=ai-session-live-extension.zip",
+        "Content-Length": zipBuffer.length.toString(),
       },
     });
   } catch (error) {
