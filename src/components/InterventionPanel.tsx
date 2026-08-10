@@ -29,7 +29,6 @@ export default function InterventionPanel({
   onSubmit,
   onAccept,
   onReject,
-  onSendToChatGPT,
 }: InterventionPanelProps) {
   const [contenu, setContenu] = useState("");
   const [type, setType] = useState<InterventionType>("suggestion");
