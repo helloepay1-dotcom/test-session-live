@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Installer l'extension</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #0a0a0b;
+      color: #e4e4e7;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      text-align: center;
+    }
+    .step {
+      background: #141416;
+      padding: 20px;
+      border-radius: 12px;
+      margin: 20px 0;
+      border: 1px solid #2a2a2e;
+      text-align: left;
+    }
+    .step-number {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      background: #6366f1;
+      color: white;
+      border-radius: 50%;
+      line-height: 30px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px;
+    }
+    button:hover {
+      background: #818cf8;
+    }
+    .success {
+      background: #22c55e;
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 Installation de l'extension</h1>
+  <p>Suivez ces 3 étapes simples pour capturer ChatGPT automatiquement</p>
+
+  <div class="step">
+    <h3><span class="step-number">1</span> Téléchargez l'extension</h3>
+    <p>Cliquez sur le bouton ci-dessous pour télécharger le fichier ZIP</p>
+    <button onclick="downloadExtension()">📥 Télécharger l'extension</button>
+  </div>
+
+  <div class="step">
+    <h3><span class="step-number">2</span> Décompressez le fichier</h3>
+    <p>Double-cliquez sur le fichier ZIP téléchargé pour le décompresser</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="step-number">3</span> Installez dans Chrome</h3>
+    <ol>
+      <li>Ouvrez Chrome et allez à <code>chrome://extensions/</code></li>
+      <li>Activez "Mode développeur" en haut à droite</li>
+      <li>Cliquez sur "Charger l'extension non empaquetée"</li>
+      <li>Sélectionnez le dossier décompressé</li>
+    </ol>
+  </div>
+
+  <div class="success" id="successMessage" style="display: none;">
+    ✅ Extension installée ! Allez sur ChatGPT et cliquez sur l'icône de l'extension.
+  </div>
+
+  <script>
+    function downloadExtension() {
+      // En production, ceci serait un vrai fichier ZIP
+      // Pour l'instant, on redirige vers le dossier
+      alert("En développement : utilisez le dossier chrome-extension du projet");
+      
+      document.getElementById('successMessage').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Injection - Bookmarklet</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .container {
+      background: #2a2a2a;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0 0 16px 0;
+      font-size: 24px;
+    }
+    .step {
+      background: #3a3a3a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .step-number {
+      display: inline-block;
+      background: #4a9eff;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      margin-right: 12px;
+      font-weight: bold;
+    }
+    .button {
+      background: #4a9eff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+    .button:hover {
+      background: #3a8eef;
+    }
+    .bookmarklet {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 16px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .bookmarklet:hover {
+      background: #45a049;
+    }
+    .note {
+      background: #ff9800;
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+    .result {
+      background: #4a4a4a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test Injection - Méthode Simple</h1>
+    
+    <div class="step">
+      <span class="step-number">1</span>
+      <strong>Allez sur ChatGPT</strong> : <a href="https://chatgpt.com" target="_blank" style="color: #4a9eff;">https://chatgpt.com</a>
+    </div>
+    
+    <div class="step">
+      <span class="step-number">2</span>
+      <strong>Glissez ce bouton vers vos favoris</strong> :
+      <br>
+      <a href="javascript:(function(){console.log('🧪 Test injection');const selectors=['#prompt-textarea','div[contenteditable%3D%22true%22][role%3D%22textbox%22]','div[contenteditable%3D%22true%22]','textarea'];let foundElement=null;let foundSelector=null;for(const selector of selectors){const element=document.querySelector(selector);if(element){foundElement=element;foundSelector=selector;console.log('✅ Composer trouvé avec:',selector);break;}}if(!foundElement){console.error('❌ Aucun composer trouvé');alert('❌ Aucun composer trouvé');return;}const testText='TEST MULTIPLAYER';console.log('📝 Injection de:',testText);try{if(foundElement instanceof HTMLTextAreaElement){foundElement.value=testText;foundElement.dispatchEvent(new Event('input',{bubbles:true}));console.log('✅ Injection textarea réussie');}else{const selection=window.getSelection();const range=document.createRange();range.selectNodeContents(foundElement);selection?.removeAllRanges();selection?.addRange(range);const inserted=document.execCommand('insertText',false,testText);if(inserted){console.log('✅ Injection execCommand réussie');}else{foundElement.textContent=testText;console.log('✅ Injection textContent réussie');}}console.log('🎉 Test terminé');setTimeout(()=>{console.log('📋 Contenu actuel:',foundElement.innerText||foundElement.value);},100);alert('✅ Test terminé - vérifiez ChatGPT');}catch(error){console.error('❌ Erreur:',error);alert('❌ Erreur: '+error.message);}})();" class="bookmarklet">🧪 Test Injection</a>
+    </div>
+    
+    <div class="step">
+      <span class="step-number">3</span>
+      <strong>Sur ChatGPT, cliquez sur le favori "🧪 Test Injection"</strong>
+    </div>
+    
+    <div class="note">
+      💡 Si le favori ne fonctionne pas, essayez l'alternative ci-dessous
+    </div>
+    
+    <button class="button" onclick="runTest()">Lancer le test depuis cette page</button>
+    
+    <div id="result" class="result" style="display: none;"></div>
+  </div>
+
+  <script>
+    function runTest() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '🧪 Test en cours...\n\n';
+      
+      const selectors = [
+        '#prompt-textarea',
+        'div[contenteditable="true"][role="textbox"]',
+        'div[contenteditable="true"]',
+        'textarea'
+      ];
+
+      let foundElement = null;
+      let foundSelector = null;
+
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+          foundElement = element;
+          foundSelector = selector;
+          resultDiv.textContent += '✅ Composer trouvé avec: ' + selector + '\n';
+          break;
+        }
+      }
+
+      if (!foundElement) {
+        resultDiv.textContent += '❌ Aucun composer trouvé\n';
+        resultDiv.textContent += '💡 Ce test doit être exécuté sur chatgpt.com\n';
+        return;
+      }
+
+      const testText = 'TEST MULTIPLAYER';
+      resultDiv.textContent += '📝 Tentative d\'injection: "' + testText + '"\n';
+
+      try {
+        if (foundElement instanceof HTMLTextAreaElement) {
+          foundElement.value = testText;
+          foundElement.dispatchEvent(new Event('input', { bubbles: true }));
+          resultDiv.textContent += '✅ Injection dans textarea réussie\n';
+        } else {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(foundElement);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          
+          const inserted = document.execCommand('insertText', false, testText);
+          if (inserted) {
+            resultDiv.textContent += '✅ Injection via execCommand réussie\n';
+          } else {
+            foundElement.textContent = testText;
+            resultDiv.textContent += '✅ Injection via textContent réussie\n';
+          }
+        }
+
+        resultDiv.textContent += '🎉 Test terminé - vérifiez si le texte apparaît\n';
+        
+        setTimeout(() => {
+          resultDiv.textContent += '📋 Contenu actuel: ' + (foundElement.innerText || foundElement.value) + '\n';
+        }, 100);
+
+      } catch (error) {
+        resultDiv.textContent += '❌ Erreur: ' + (error instanceof Error ? error.message : String(error)) + '\n';
+      }
+    }
+  </script>
+</body>
+</html>

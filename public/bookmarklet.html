@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Session Live - Bookmarklet</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #0a0a0b;
+      color: #e4e4e7;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .bookmarklet {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #6366f1;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      margin: 20px 0;
+    }
+    .bookmarklet:hover {
+      background: #818cf8;
+    }
+    .step {
+      background: #141416;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      border: 1px solid #2a2a2e;
+    }
+    code {
+      background: #1c1c1f;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 Capture automatique - Bookmarklet</h1>
+  
+  <p>Aucune installation requise ! Ajoutez simplement ce lien à vos favoris.</p>
+  
+  <div class="step">
+    <h3>Étape 1 : Ajouter aux favoris</h3>
+    <p>Glissez ce bouton dans votre barre de favoris :</p>
+    <a href="javascript:(function(){const script=document.createElement('script');script.src='http://localhost:3000/capture-script.js';document.body.appendChild(script);})();" class="bookmarklet">🎯 Capturer Session Live</a>
+  </div>
+  
+  <div class="step">
+    <h3>Étape 2 : Configurer (une seule fois)</h3>
+    <p>Quand vous êtes sur ChatGPT ou Claude.ai, cliquez sur le favori. Il vous demandera l'URL de votre session.</p>
+  </div>
+  
+  <div class="step">
+    <h3>Étape 3 : Capturer automatiquement</h3>
+    <p>Le script détectera automatiquement les nouveaux messages et les enverra à votre session en temps réel.</p>
+  </div>
+  
+  <p><strong>Avantages :</strong></p>
+  <ul>
+    <li>✅ Aucune installation d'extension</li>
+    <li>✅ Fonctionne sur tous les navigateurs</li>
+    <li>✅ Capture automatique en temps réel</li>
+    <li>✅ Configuration une seule fois</li>
+  </ul>
+</body>
+</html>
