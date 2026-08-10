@@ -12,7 +12,7 @@ export async function GET() {
     // Utiliser archiver pour créer le ZIP
     const archiver = require("archiver");
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const archive = archiver("zip");
 
     archive.pipe(output);
     archive.directory(extensionPath, false);
