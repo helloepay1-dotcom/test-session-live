@@ -22,11 +22,19 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { 
+        status: 500,
+        headers: { "Access-Control-Allow-Origin": "*" } 
+      });
     }
 
-    return NextResponse.json({ interventions: interventions || [] });
+    return NextResponse.json({ interventions: interventions || [] }, {
+      headers: { "Access-Control-Allow-Origin": "*" }
+    });
   } catch {
-    return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur de traitement" }, { 
+      status: 500,
+      headers: { "Access-Control-Allow-Origin": "*" } 
+    });
   }
 }

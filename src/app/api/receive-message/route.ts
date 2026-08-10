@@ -23,8 +23,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Missing required fields");
       return NextResponse.json(
         { error: "Champs requis : session_id, contenu, role" },
-        { status: 400 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 400,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -32,8 +34,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Invalid role");
       return NextResponse.json(
         { error: "role doit être 'utilisateur' ou 'assistant'" },
-        { status: 400 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 400,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -58,8 +62,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Supabase connection failed");
       return NextResponse.json(
         { error: "Erreur de connexion Supabase" },
-        { status: 500 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 500,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -68,8 +74,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Session not found");
       return NextResponse.json(
         { error: "Session introuvable" },
-        { status: 404 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 404,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -78,8 +86,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Session inactive");
       return NextResponse.json(
         { error: "Session terminée" },
-        { status: 410 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 410,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -110,8 +120,10 @@ export async function POST(request: NextRequest) {
       console.log("[RECEIVE-MESSAGE] ERROR: Insert failed", error);
       return NextResponse.json(
         { error: error.message || "Erreur d'insertion" },
-        { status: 500 },
-        { headers: { "Access-Control-Allow-Origin": "*" } }
+        { 
+          status: 500,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -128,8 +140,10 @@ export async function POST(request: NextRequest) {
     console.log("[RECEIVE-MESSAGE] CATCH ERROR:", error);
     return NextResponse.json(
       { error: "Requête invalide" },
-      { status: 400 },
-      { headers: { "Access-Control-Allow-Origin": "*" } }
+      { 
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" } 
+      }
     );
   }
 }

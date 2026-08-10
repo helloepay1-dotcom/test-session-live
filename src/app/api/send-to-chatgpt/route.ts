@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
       const error = await response.json();
       return NextResponse.json(
         { error: error.error?.message || "Erreur OpenAI" },
-        { status: response.status }
+        { 
+          status: response.status,
+          headers: { "Access-Control-Allow-Origin": "*" } 
+        }
       );
     }
 
@@ -48,12 +51,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       response: data.choices[0].message.content 
+    }, {
+      headers: { "Access-Control-Allow-Origin": "*" }
     });
 
   } catch {
     return NextResponse.json(
       { error: "Erreur de traitement" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: { "Access-Control-Allow-Origin": "*" } 
+      }
     );
   }
 }

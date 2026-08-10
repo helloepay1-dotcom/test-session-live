@@ -37,20 +37,27 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.log("[POLL-MESSAGES] ERROR:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { 
+        status: 500,
+        headers: { "Access-Control-Allow-Origin": "*" } 
+      });
     }
 
     console.log("[POLL-MESSAGES] Messages found:", messages?.length || 0);
     console.log("[POLL-MESSAGES] Messages:", messages);
 
-    return NextResponse.json({ messages: messages || [] }, {
+    return NextResponse.json({ messages: messages || [] }, { 
+      status: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
       }
     });
   } catch (error) {
     console.log("[POLL-MESSAGES] CATCH ERROR:", error);
-    return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur de traitement" }, { 
+      status: 500,
+      headers: { "Access-Control-Allow-Origin": "*" } 
+    });
   }
 }
 

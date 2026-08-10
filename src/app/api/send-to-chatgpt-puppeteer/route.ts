@@ -43,12 +43,17 @@ export async function POST(request: NextRequest) {
     // Fermer le navigateur
     await browser.close();
     
-    return NextResponse.json({ success: true, message: "Message envoyé à ChatGPT via Puppeteer" });
+    return NextResponse.json({ success: true, message: "Message envoyé à ChatGPT via Puppeteer" }, {
+      headers: { "Access-Control-Allow-Origin": "*" }
+    });
     
   } catch (error) {
     console.error("Erreur Puppeteer:", error);
     return NextResponse.json({ 
       error: error instanceof Error ? error.message : "Erreur lors de l'envoi" 
-    }, { status: 500 });
+    }, { 
+      status: 500,
+      headers: { "Access-Control-Allow-Origin": "*" } 
+    });
   }
 }
