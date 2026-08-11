@@ -1,42 +1,36 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import JSZip from "jszip";
 
 export const runtime = "nodejs";
 
+function addDirectoryToZip(
+  zip: JSZip,
+  directoryPath: string,
+  relativePath = ""
+) {
+  const entries = fs.readdirSync(directoryPath, {
+    withFileTypes: true,
+  });
+
+  for (const entry of entries) {
+    const fullPath = path.join(directoryPath, entry.name);
+    const zipPath = relativePath
+      ? `${relativePath}/${entry.name}` 
+      : entry.name;
+
+    if (entry.isDirectory()) {
+      addDirectoryToZip(zip, fullPath, zipPath);
+    } else {
+      const fileBuffer = fs.readFileSync(fullPath);
+      zip.file(zipPath, fileBuffer);
+    }
+  }
+}
+
 export async function GET() {
   try {
-    const archiverModule = await import("archiver");
-
-    const archiver = (
-      archiverModule as unknown as {
-        default?: (
-          format: string,
-          options?: Record<string, unknown>
-        ) => any;
-      }
-    ).default ?? (
-      archiverModule as unknown as (
-        format: string,
-        options?: Record<string, unknown>
-      ) => any
-    );
-
-    const chunks: Buffer[] = [];
-
-    const archive = archiver("zip", {
-      zlib: { level: 9 },
-    });
-
-    archive.on("data", (chunk: Buffer) => {
-      chunks.push(chunk);
-    });
-
-    const archivePromise = new Promise<void>((resolve, reject) => {
-      archive.on("end", () => resolve());
-      archive.on("error", (error: Error) => reject(error));
-    });
-
     const extensionPath = path.join(
       process.cwd(),
       "chrome-extension"
@@ -51,15 +45,19 @@ export async function GET() {
       );
     }
 
-    archive.directory(extensionPath, false);
+    const zip = new JSZip();
 
-    await archive.finalize();
+    addDirectoryToZip(zip, extensionPath);
 
-    await archivePromise;
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 9,
+      },
+    });
 
-    const zipBuffer = Buffer.concat(chunks);
-
-    if (zipBuffer.length === 0) {
+    if (!zipBuffer || zipBuffer.length === 0) {
       return NextResponse.json(
         {
           error: "ZIP vide ou création échouée",
