@@ -50,12 +50,12 @@
       
       <div style="margin-bottom: 12px;">
         <label style="display: block; font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">URL de session</label>
-        <input type="url" id="sessionUrlInput" value="${config.sessionUrl}" placeholder="http://localhost:3000/session/..." style="width: 100%; padding: 8px; background: #141416; border: 1px solid #2a2a2e; border-radius: 6px; color: #e4e4e7; font-size: 14px;">
+        <input type="url" id="sessionUrlInput" value="${config.sessionUrl}" placeholder="https://votre-app.com/session/..." style="width: 100%; padding: 8px; background: #141416; border: 1px solid #2a2a2e; border-radius: 6px; color: #e4e4e7; font-size: 14px;">
       </div>
       
       <div style="margin-bottom: 12px;">
         <label style="display: block; font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">URL API</label>
-        <input type="url" id="apiUrlInput" value="${config.apiUrl}" placeholder="http://localhost:3000/api/receive-message" style="width: 100%; padding: 8px; background: #141416; border: 1px solid #2a2a2e; border-radius: 6px; color: #e4e4e7; font-size: 14px;">
+        <input type="url" id="apiUrlInput" value="${config.apiUrl}" placeholder="https://votre-app.com/api/receive-message" style="width: 100%; padding: 8px; background: #141416; border: 1px solid #2a2a2e; border-radius: 6px; color: #e4e4e7; font-size: 14px;">
       </div>
       
       <div style="margin-bottom: 16px;">

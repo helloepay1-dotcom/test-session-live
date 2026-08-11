@@ -5,10 +5,10 @@ const apiUrlInput = document.getElementById("apiUrl");
 const apiKeyInput = document.getElementById("apiKey");
 const toggleBtn = document.getElementById("toggleBtn");
 
-// Valeurs par défaut pour l'environnement local
+// Valeurs par défaut
 const DEFAULTS = {
   sessionUrl: "",
-  apiUrl: "http://localhost:3000/api/receive-message",
+  apiUrl: "",
   apiKey: "ai-session-live-2026-secret"
 };
 
@@ -105,7 +105,7 @@ toggleBtn.addEventListener("click", async () => {
 
   const sessionId = extractSessionId(sessionUrl);
   if (!sessionId) {
-    alert("URL de session invalide. Format attendu : http://localhost:3000/session/abc123");
+    alert("URL de session invalide. Format attendu : https://votre-app.com/session/abc123");
     return;
   }
 
