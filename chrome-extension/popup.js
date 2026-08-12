@@ -36,11 +36,32 @@ function setStatus(active) {
   }
 }
 
+// Déduire l'URL de l'API à partir de l'URL de session
+function deriveApiUrl(sessionUrl) {
+  try {
+    const parsed = new URL(sessionUrl);
+    return `${parsed.origin}/api/receive-message`;
+  } catch {
+    return "";
+  }
+}
+
 // Sauvegarde automatique pendant la saisie
 function setupAutoSave() {
-  const inputs = [sessionUrlInput, apiUrlInput, apiKeyInput];
+  // Dès que l'URL de session change, déduire l'URL de l'API
+  sessionUrlInput.addEventListener('input', () => {
+    const apiUrl = deriveApiUrl(sessionUrlInput.value);
+    apiUrlInput.value = apiUrl;
+    
+    chrome.storage.local.set({
+      sessionUrl: sessionUrlInput.value,
+      apiUrl: apiUrl,
+      apiKey: apiKeyInput.value
+    });
+  });
   
-  inputs.forEach(input => {
+  // Pour les autres champs
+  [apiUrlInput, apiKeyInput].forEach(input => {
     input.addEventListener('input', () => {
       chrome.storage.local.set({
         sessionUrl: sessionUrlInput.value,
@@ -95,11 +116,17 @@ toggleBtn.addEventListener("click", async () => {
   }
 
   const sessionUrl = sessionUrlInput.value.trim();
-  const apiUrl = apiUrlInput.value.trim();
+  let apiUrl = apiUrlInput.value.trim();
   const apiKey = apiKeyInput.value.trim();
 
-  if (!sessionUrl || !apiUrl || !apiKey) {
-    alert("Remplissez tous les champs avant de démarrer.");
+  // Déduire l'URL de l'API si non renseignée
+  if (!apiUrl && sessionUrl) {
+    apiUrl = deriveApiUrl(sessionUrl);
+    apiUrlInput.value = apiUrl;
+  }
+
+  if (!sessionUrl || !apiKey) {
+    alert("Remplissez l'URL de session et la clé API avant de démarrer.");
     return;
   }
 

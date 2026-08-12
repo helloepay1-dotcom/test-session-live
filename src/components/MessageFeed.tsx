@@ -92,9 +92,12 @@ export default function MessageFeed({
       {groupedMessages.map((group, groupIndex) => {
         const firstMsg = group[0];
         const isUser = firstMsg.role === "utilisateur";
-        const author = firstMsg.auteur_id
-          ? participantsMap.get(firstMsg.auteur_id)
-          : null;
+        
+        // Cas spécial pour les messages de l'extension
+        const isExtension = firstMsg.auteur_id === "extension-chrome";
+        const author = isExtension 
+          ? { nom: "Extension Chrome", couleur: "#6366f1" }
+          : (firstMsg.auteur_id ? participantsMap.get(firstMsg.auteur_id) : null);
 
         return (
           <div
@@ -103,6 +106,10 @@ export default function MessageFeed({
           >
             {isUser && author ? (
               <Avatar nom={author.nom} couleur={author.couleur} size="md" />
+            ) : isExtension ? (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 border border-purple-500/30 flex items-center justify-center shrink-0 shadow-lg">
+                <span className="text-xs font-bold text-white">🔌</span>
+              </div>
             ) : (
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-accent-hover border border-accent/30 flex items-center justify-center shrink-0 shadow-lg">
                 <span className="text-xs font-bold text-white">AI</span>
