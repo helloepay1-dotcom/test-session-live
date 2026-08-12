@@ -17,6 +17,20 @@
   let pollTimer = null;
   let lastProcessedMessageId = null;
   let ourCapturedMessages = new Set(); // Pour éviter la boucle d'auto-injection
+  let lastAssistantText = ""; // Pour le debugging de visibilité
+
+  // ── Debugging visibility tracking ──────────────────────────
+  
+  document.addEventListener("visibilitychange", () => {
+    console.log("[E-ONEZEN] Visibility changed:", document.visibilityState);
+  });
+
+  function logVisibilityState(context) {
+    console.log("[E-ONEZEN]", context, "- Onglet visible:", !document.hidden);
+    console.log("[E-ONEZEN]", context, "- VisibilityState:", document.visibilityState);
+    console.log("[E-ONEZEN]", context, "- Dernier message assistant:", lastAssistantText.slice(0, 50) + "...");
+    console.log("[E-ONEZEN]", context, "- Timestamp:", Date.now());
+  }
 
   // ── Platform detection ────────────────────────────────────
 
@@ -200,6 +214,10 @@
       existing.lastText = text;
     }
 
+    // Log pour debugging de visibilité
+    lastAssistantText = text;
+    logVisibilityState("Assistant message détecté");
+
     const entry = {
       lastText: text,
       timer: setTimeout(() => {
@@ -209,6 +227,8 @@
 
         if (sentMessages.has(finalHash)) return;
         sentMessages.add(finalHash);
+        
+        logVisibilityState("Assistant message finalisé (envoi)");
         sendMessage(finalText, role);
       }, DEBOUNCE_MS),
     };
@@ -251,6 +271,11 @@
       messages = extractGeminiMessages();
     } else {
       messages = extractChatGPTMessages();
+    }
+
+    // Log pour debugging
+    if (messages.length > 0) {
+      logVisibilityState(`ScanMessages - ${messages.length} messages trouvés`);
     }
 
     messages.forEach(({ element, text, role }) => {
