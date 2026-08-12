@@ -25,6 +25,8 @@
     if (host.includes("claude.ai")) return "claude";
     if (host.includes("chatgpt.com") || host.includes("chat.openai.com"))
       return "chatgpt";
+    if (host.includes("gemini.google.com") || host.includes("aistudio.google.com"))
+      return "gemini";
     return null;
   }
 
@@ -115,6 +117,53 @@
     return results;
   }
 
+  function extractGeminiMessages() {
+    const results = [];
+
+    console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
+
+    // Gemini user messages
+    document
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query")
+      .forEach((el) => {
+        const text = getCleanText(el);
+        if (text && text.length > 1) {
+          console.log("[AI Session Live] 📝 Gemini user message trouvé:", text.slice(0, 50));
+          results.push({ element: el, text, role: "utilisateur" });
+        }
+      });
+
+    // Gemini assistant messages
+    document
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content")
+      .forEach((el) => {
+        // Avoid nested elements inside user messages
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message")) return;
+        const text = getCleanText(el);
+        if (text && text.length > 1) {
+          console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
+          results.push({ element: el, text, role: "assistant" });
+        }
+      });
+
+    // Fallback: Try generic message containers
+    if (results.length === 0) {
+      console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
+      document
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article")
+        .forEach((el, i) => {
+          const text = getCleanText(el);
+          if (!text || text.length < 2) return;
+          const role = i % 2 === 0 ? "utilisateur" : "assistant";
+          console.log("[AI Session Live] 🔄 Fallback Gemini message:", role, text.slice(0, 30));
+          results.push({ element: el, text, role });
+        });
+    }
+
+    console.log("[AI Session Live] 📊 Gemini messages extraits:", results.length);
+    return results;
+  }
+
   function getCleanText(el) {
     const clone = el.cloneNode(true);
     clone
@@ -194,10 +243,15 @@
     if (!isCapturing) return;
 
     const platform = getPlatform();
-    const messages =
-      platform === "claude"
-        ? extractClaudeMessages()
-        : extractChatGPTMessages();
+    let messages;
+    
+    if (platform === "claude") {
+      messages = extractClaudeMessages();
+    } else if (platform === "gemini") {
+      messages = extractGeminiMessages();
+    } else {
+      messages = extractChatGPTMessages();
+    }
 
     messages.forEach(({ element, text, role }) => {
       handleMessage(element, text, role);
@@ -355,7 +409,24 @@
       'textarea'
     ];
 
-    const selectors = platform === "claude" ? claudeSelectors : chatgptSelectors;
+    // Sélecteurs spécifiques pour Gemini
+    const geminiSelectors = [
+      'div[contenteditable="true"][data-testid="user-input"]',
+      'div[contenteditable="true"][data-placeholder="Message Gemini…"]',
+      'div[contenteditable="true"][data-placeholder*="Enter"]',
+      'div[contenteditable="true"]',
+      'textarea',
+      'input[type="text"]'
+    ];
+
+    let selectors;
+    if (platform === "claude") {
+      selectors = claudeSelectors;
+    } else if (platform === "gemini") {
+      selectors = geminiSelectors;
+    } else {
+      selectors = chatgptSelectors;
+    }
 
     for (const selector of selectors) {
       const element = document.querySelector(selector);
@@ -505,7 +576,25 @@
       'button[class*="send"]'
     ];
 
-    const selectors = platform === "claude" ? claudeSelectors : chatgptSelectors;
+    // Sélecteurs spécifiques pour Gemini
+    const geminiSelectors = [
+      'button[aria-label="Send message"]',
+      'button[data-testid="send-button"]',
+      'button[type="submit"]',
+      'button:has(svg[data-icon="send"])',
+      'button:has(svg)',
+      'button[class*="send"]',
+      'button svg'
+    ];
+
+    let selectors;
+    if (platform === "claude") {
+      selectors = claudeSelectors;
+    } else if (platform === "gemini") {
+      selectors = geminiSelectors;
+    } else {
+      selectors = chatgptSelectors;
+    }
 
     let sendButton = null;
     let foundSelector = null;

@@ -102,6 +102,7 @@
     const host = window.location.hostname;
     if (host.includes('claude.ai')) return 'claude';
     if (host.includes('chatgpt.com') || host.includes('chat.openai.com')) return 'chatgpt';
+    if (host.includes('gemini.google.com') || host.includes('aistudio.google.com')) return 'gemini';
     return null;
   }
   
@@ -121,6 +122,13 @@
     } else if (platform === 'claude') {
       document.querySelectorAll('[data-testid="user-message"], [data-testid="assistant-message"]').forEach(el => {
         const isUser = el.getAttribute('data-testid') === 'user-message';
+        const role = isUser ? 'utilisateur' : 'assistant';
+        const text = el.textContent?.trim() || '';
+        if (text) results.push({ element: el, text, role });
+      });
+    } else if (platform === 'gemini') {
+      document.querySelectorAll('[data-test-id="user-turn"], [data-test-id="model-turn"]').forEach(el => {
+        const isUser = el.getAttribute('data-test-id') === 'user-turn';
         const role = isUser ? 'utilisateur' : 'assistant';
         const text = el.textContent?.trim() || '';
         if (text) results.push({ element: el, text, role });

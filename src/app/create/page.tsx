@@ -10,7 +10,8 @@ import { pickColor } from "@/lib/colors";
 const OUTILS = [
   { id: "chatgpt", label: "ChatGPT", emoji: "💬" },
   { id: "claude", label: "Claude", emoji: "🤖" },
-  { id: "autre", label: "Autre", emoji: "✨" },
+  { id: "gemini", label: "Gemini", emoji: "✨" },
+  { id: "autre", label: "Autre", emoji: "🔮" },
 ];
 
 export default function CreateSessionPage() {
@@ -207,15 +208,22 @@ export default function CreateSessionPage() {
           <div className="space-y-2">
             <button
               onClick={() => {
-                // Ouvrir ChatGPT si c'est l'outil choisi
+                // Ouvrir l'outil IA choisi
                 if (outil === "chatgpt") {
                   window.open("https://chatgpt.com", "_blank");
+                } else if (outil === "claude") {
+                  window.open("https://claude.ai", "_blank");
+                } else if (outil === "gemini") {
+                  window.open("https://gemini.google.com", "_blank");
                 }
                 router.push(createdLink.replace(window.location.origin, ""));
               }}
               className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-medium rounded-xl transition-colors"
             >
-              {outil === "chatgpt" ? "🚀 Ouvrir ChatGPT et rejoindre" : "🚀 Rejoindre la session"}
+              {outil === "chatgpt" ? "🚀 Ouvrir ChatGPT et rejoindre" : 
+               outil === "claude" ? "🚀 Ouvrir Claude et rejoindre" :
+               outil === "gemini" ? "🚀 Ouvrir Gemini et rejoindre" :
+               "🚀 Rejoindre la session"}
             </button>
             
             <button
