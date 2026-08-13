@@ -11,23 +11,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // Injecter l'intervention dans ChatGPT via content script
     const interventionText = message.text;
     
-    // Trouver l'onglet ChatGPT
-    chrome.tabs.query({ url: "*://chatgpt.com/*" }, (tabs) => {
-      if (tabs.length > 0) {
-        const chatGPTTab = tabs[0];
+    // Trouver l'onglet ChatGPT (chatgpt.com ou chat.openai.com)
+    chrome.tabs.query({ url: "*://chatgpt.com/*" }, (chatgptTabs) => {
+      if (chatgptTabs.length > 0) {
+        const chatGPTTab = chatgptTabs[0];
         
-        // Activer l'onglet
-        chrome.tabs.update(chatGPTTab.id, { active: true }, () => {
-          // Envoyer le message au content script
-          chrome.tabs.sendMessage(chatGPTTab.id, {
-            type: "INJECT_TEXT",
-            text: interventionText
-          }, (response) => {
-            sendResponse({ success: !!response });
-          });
+        // Envoyer le message au content script SANS activer l'onglet
+        chrome.tabs.sendMessage(chatGPTTab.id, {
+          type: "INJECT_TEXT",
+          text: interventionText
+        }, (response) => {
+          sendResponse({ success: !!response });
         });
       } else {
-        sendResponse({ success: false, error: "Aucun onglet ChatGPT trouvé" });
+        // Essayer avec chat.openai.com
+        chrome.tabs.query({ url: "*://chat.openai.com/*" }, (openaiTabs) => {
+          if (openaiTabs.length > 0) {
+            const openaiTab = openaiTabs[0];
+            
+            // Envoyer le message au content script SANS activer l'onglet
+            chrome.tabs.sendMessage(openaiTab.id, {
+              type: "INJECT_TEXT",
+              text: interventionText
+            }, (response) => {
+              sendResponse({ success: !!response });
+            });
+          } else {
+            sendResponse({ success: false, error: "Aucun onglet ChatGPT trouvé (ni chatgpt.com ni chat.openai.com)" });
+          }
+        });
       }
     });
     
