@@ -397,12 +397,12 @@
             return;
           }
 
-          console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
+          console.log("[AI Session Live] SENDING MESSAGE TO OPENAI API:", message.contenu);
 
-          const success =
-            injectTextIntoChatGPT(message.contenu);
+          // Envoyer le message à notre API OpenAI au lieu de l'injecter dans ChatGPT
+          sendToOpenAI(message.contenu);
 
-          if (success) {
+          if (true) {
             lastProcessedMessageId = message.id;
             console.log("[AI Session Live] MARKED AS PROCESSED:", message.id);
           }
@@ -411,6 +411,34 @@
       .catch(error => {
         console.error("[AI Session Live] POLLING ERROR:", error);
       });
+  }
+
+  function sendToOpenAI(message) {
+    const apiUrl = new URL(config.apiUrl);
+    const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
+    const openaiUrl = `${appUrl}/api/send-to-openai`;
+
+    console.log("[AI Session Live] Sending to OpenAI API:", openaiUrl);
+
+    fetch(openaiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: message,
+        userId: currentUserId,
+        sessionId: config.sessionId,
+      }),
+    })
+    .then(response => {
+      if (response.ok) {
+        console.log("[AI Session Live] Message sent to OpenAI API successfully");
+      } else {
+        console.error("[AI Session Live] Error sending to OpenAI API:", response.status);
+      }
+    })
+    .catch(error => {
+      console.error("[AI Session Live] Network error sending to OpenAI API:", error);
+    });
   }
 
   // ── Injection dans ChatGPT ───────────────────────────────────

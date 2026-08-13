@@ -8,7 +8,7 @@ import { getOrCreateUser } from "@/lib/user";
 import { pickColor } from "@/lib/colors";
 
 const OUTILS = [
-  { id: "chatgpt", label: "ChatGPT", emoji: "💬" },
+  { id: "chatgpt", label: "ChatGPT (Direct API)", emoji: "💬" },
   { id: "claude", label: "Claude", emoji: "🤖" },
   { id: "gemini", label: "Gemini", emoji: "✨" },
   { id: "autre", label: "Autre", emoji: "🔮" },
@@ -208,10 +208,9 @@ export default function CreateSessionPage() {
           <div className="space-y-2">
             <button
               onClick={() => {
-                // Ouvrir l'outil IA choisi
-                if (outil === "chatgpt") {
-                  window.open("https://chatgpt.com", "_blank");
-                } else if (outil === "claude") {
+                // Pour ChatGPT API direct, on ne fait qu'aller à la session
+                // Pour Claude et Gemini, on ouvre les onglets respectifs
+                if (outil === "claude") {
                   window.open("https://claude.ai", "_blank");
                 } else if (outil === "gemini") {
                   window.open("https://gemini.google.com", "_blank");
@@ -220,7 +219,7 @@ export default function CreateSessionPage() {
               }}
               className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-medium rounded-xl transition-colors"
             >
-              {outil === "chatgpt" ? "🚀 Ouvrir ChatGPT et rejoindre" : 
+              {outil === "chatgpt" ? "🚀 Rejoindre la session (API directe)" : 
                outil === "claude" ? "🚀 Ouvrir Claude et rejoindre" :
                outil === "gemini" ? "🚀 Ouvrir Gemini et rejoindre" :
                "🚀 Rejoindre la session"}
