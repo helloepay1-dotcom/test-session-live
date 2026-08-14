@@ -1,12 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AI Session Live — Capture (CDP DEBUG)",
-  "version": "1.4.0-cdp-debug",
-  "description": "CDP DEBUG VERSION - Capture ChatGPT responses via Chrome DevTools Protocol independent of DOM rendering.",
+  "name": "AI Session Live — Capture (MAIN WORLD DIAGNOSTIC)",
+  "version": "1.5.0-main-world-diagnostic",
+  "description": "MAIN WORLD DIAGNOSTIC VERSION - Test fetch interception in ChatGPT MAIN world context.",
   "permissions": [
     "storage",
-    "activeTab",
-    "debugger"
+    "activeTab"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
@@ -42,7 +41,17 @@
         "https://aistudio.google.com/*"
       ],
       "js": ["content.js"],
+      "world": "ISOLATED",
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["main-world-injector.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ]
 }

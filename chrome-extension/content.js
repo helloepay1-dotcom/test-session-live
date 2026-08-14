@@ -20,6 +20,8 @@
   let lastAssistantText = ""; // Pour le debugging de visibilité
   let cdpAttached = false; // État de l'attachement CDP
   let cdpProcessedMessages = new Set(); // Messages déjà traités par CDP
+  let mainWorldChunks = []; // Chunks reçus du MAIN world
+  let mainWorldRequestId = null; // Request ID courant du MAIN world
 
   // ── Debugging visibility tracking ──────────────────────────
   
@@ -908,6 +910,43 @@
       // Envoyer via le système SEND_MESSAGE existant
       console.log("[AI Session Live][CDP] SENDING ASSISTANT RESPONSE");
       sendMessage(text, "assistant");
+    }
+  });
+
+  // ── Communication MAIN world ←→ content script ───────────
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+
+    const data = event.data;
+    if (!data) return;
+
+    if (data.type === "AI_SESSION_LIVE_STREAM_CHUNK") {
+      console.log("[AI Session Live][MAIN WORLD] Chunk reçu:", data.chunkNumber);
+      console.log("[AI Session Live][MAIN WORLD] Visibility:", data.visibility);
+      console.log("[AI Session Live][MAIN WORLD] Chunk preview:", data.chunkText.slice(0, 50));
+      
+      mainWorldRequestId = data.requestId;
+      mainWorldChunks.push({
+        number: data.chunkNumber,
+        text: data.chunkText,
+        visibility: data.visibility
+      });
+    }
+
+    if (data.type === "AI_SESSION_LIVE_STREAM_FINISHED") {
+      console.log("[AI Session Live][MAIN WORLD] Stream terminé");
+      console.log("[AI Session Live][MAIN WORLD] Total chunks:", data.chunkCount);
+      console.log("[AI Session Live][MAIN WORLD] Visibility finale:", data.visibility);
+      
+      // Reconstruire le texte complet
+      const fullText = mainWorldChunks.map(c => c.text).join('');
+      console.log("[AI Session Live][MAIN WORLD] Texte complète length:", fullText.length);
+      console.log("[AI Session Live][MAIN WORLD] Texte complète preview:", fullText.slice(0, 100));
+      
+      // Réinitialiser
+      mainWorldChunks = [];
+      mainWorldRequestId = null;
     }
   });
 
