@@ -18,6 +18,8 @@
   let lastProcessedMessageId = null;
   let ourCapturedMessages = new Set(); // Pour éviter la boucle d'auto-injection
   let lastAssistantText = ""; // Pour le debugging de visibilité
+  let cdpAttached = false; // État de l'attachement CDP
+  let cdpProcessedMessages = new Set(); // Messages déjà traités par CDP
 
   // ── Debugging visibility tracking ──────────────────────────
   
@@ -30,6 +32,75 @@
     console.log("[E-ONEZEN]", context, "- VisibilityState:", document.visibilityState);
     console.log("[E-ONEZEN]", context, "- Dernier message assistant:", lastAssistantText.slice(0, 50) + "...");
     console.log("[E-ONEZEN]", context, "- Timestamp:", Date.now());
+  }
+
+  // ── CDP (Chrome DevTools Protocol) Integration ─────────────
+
+  async function attachCDP() {
+    if (cdpAttached) {
+      console.log("[AI Session Live][CDP] CDP already attached");
+      return;
+    }
+
+    try {
+      const tabId = await getCurrentTabId();
+      if (!tabId) {
+        console.error("[AI Session Live][CDP] Cannot get current tab ID");
+        return;
+      }
+
+      console.log("[AI Session Live][CDP] Requesting CDP attachment - Tab:", tabId);
+      console.log("[AI Session Live][CDP] VISIBILITY:", document.visibilityState);
+
+      const response = await chrome.runtime.sendMessage({
+        type: "ATTACH_CDP",
+        payload: {
+          tabId: tabId,
+          sessionId: config.sessionId,
+          config: config
+        }
+      });
+
+      if (response.success) {
+        cdpAttached = true;
+        console.log("[AI Session Live][CDP] CDP attached successfully");
+      } else {
+        console.error("[AI Session Live][CDP] CDP attachment failed:", response.error);
+      }
+    } catch (error) {
+      console.error("[AI Session Live][CDP] Error attaching CDP:", error);
+    }
+  }
+
+  async function detachCDP() {
+    if (!cdpAttached) return;
+
+    try {
+      const tabId = await getCurrentTabId();
+      if (!tabId) return;
+
+      console.log("[AI Session Live][CDP] Requesting CDP detachment - Tab:", tabId);
+
+      const response = await chrome.runtime.sendMessage({
+        type: "DETACH_CDP",
+        payload: { tabId: tabId }
+      });
+
+      if (response.success) {
+        cdpAttached = false;
+        console.log("[AI Session Live][CDP] CDP detached successfully");
+      }
+    } catch (error) {
+      console.error("[AI Session Live][CDP] Error detaching CDP:", error);
+    }
+  }
+
+  async function getCurrentTabId() {
+    return new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        resolve(tabs[0]?.id || null);
+      });
+    });
   }
 
   // ── Platform detection ────────────────────────────────────
@@ -738,6 +809,7 @@
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
+    cdpProcessedMessages.clear();
 
     console.log("[AI Session Live] ⚙️ Config finale:", {
       sessionId: config.sessionId,
@@ -748,6 +820,13 @@
 
     isCapturing = true;
     startObserver();
+
+    // Attacher CDP pour ChatGPT (background capture)
+    const platform = getPlatform();
+    if (platform === "chatgpt") {
+      console.log("[AI Session Live][CDP] Attaching CDP for ChatGPT background capture");
+      await attachCDP();
+    }
 
     console.log(
       "[AI Session Live] ✅ Capture démarrée —",
@@ -763,11 +842,17 @@
     isCapturing = false;
     stopObserver();
     
+    // Détacher CDP
+    if (cdpAttached) {
+      detachCDP();
+    }
+    
     // Nettoyer les sets
     sentMessages.clear();
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
+    cdpProcessedMessages.clear();
     
     console.log("[AI Session Live] Capture arrêtée et sets nettoyés");
   }
@@ -796,105 +881,35 @@
       console.log("[AI Session Live] 🧪 Résultat test bouton:", result);
     }
 
-    if (message.type === "NETWORK_RESPONSE_COMPLETE") {
-      // Réception de la réponse réseau complète depuis le service worker
-      console.log("[AI Session Live] NETWORK RESPONSE COMPLETE RECEIVED");
-      console.log("[AI Session Live] VISIBILITY STATE:", document.visibilityState);
-      console.log("[AI Session Live] RESPONSE LENGTH:", message.payload.text?.length || 0);
+    if (message.type === "CDP_ASSISTANT_RESPONSE") {
+      // Réception de la réponse CDP depuis le service worker
+      console.log("[AI Session Live][CDP] CDP ASSISTANT RESPONSE RECEIVED");
+      console.log("[AI Session Live][CDP] VISIBILITY:", document.visibilityState);
+      console.log("[AI Session Live][CDP] TEXT LENGTH:", message.text?.length || 0);
+      console.log("[AI Session Live][CDP] MESSAGE ID:", message.messageId);
       
-      const { text, config } = message.payload;
+      const { text, sessionId, tabId, messageId } = message;
       
-      if (!text || !config) {
-        console.error("[AI Session Live] Invalid network response payload");
+      // Vérifier que c'est la bonne session
+      if (sessionId !== config.sessionId) {
+        console.warn("[AI Session Live][CDP] Session mismatch, ignoring response");
         return;
       }
 
-      // Parser la réponse SSE pour extraire le contenu textuel
-      const parsedText = parseSSEResponse(text);
-      console.log("[AI Session Live] PARSED TEXT LENGTH:", parsedText.length);
-      console.log("[AI Session Live] PARSED TEXT PREVIEW:", parsedText.slice(0, 100) + "...");
+      // Vérifier la déduplication
+      const messageHash = getMessageHash(text, "assistant");
+      if (cdpProcessedMessages.has(messageHash)) {
+        console.warn("[AI Session Live][CDP] Duplicate CDP message, ignoring");
+        return;
+      }
       
-      // Envoyer la réponse à l'API
-      sendNetworkResponseToApi(parsedText, config);
+      cdpProcessedMessages.add(messageHash);
+      
+      // Envoyer via le système SEND_MESSAGE existant
+      console.log("[AI Session Live][CDP] SENDING ASSISTANT RESPONSE");
+      sendMessage(text, "assistant");
     }
   });
-
-  // ── Parsing des réponses SSE de ChatGPT ───────────────────────
-
-  function parseSSEResponse(sseText) {
-    try {
-      // ChatGPT utilise le format SSE: data: {...}
-      const lines = sseText.split('\n');
-      let content = '';
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6); // Remove "data: "
-          
-          // Ignorer les signaux de fin
-          if (data === '[DONE]') continue;
-          
-          try {
-            const parsed = JSON.parse(data);
-            // Extraire le contenu du message selon la structure ChatGPT
-            if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta) {
-              content += parsed.choices[0].delta.content || '';
-            } else if (parsed.content) {
-              content += parsed.content;
-            } else if (parsed.message && parsed.message.content) {
-              content += parsed.message.content;
-            }
-          } catch (e) {
-            // Si ce n'est pas du JSON, ajouter directement
-            if (data && data !== '[DONE]') {
-              content += data;
-            }
-          }
-        }
-      }
-      
-      return content.trim();
-    } catch (error) {
-      console.error("[AI Session Live] Error parsing SSE response:", error);
-      // Fallback: retourner le texte brut
-      return sseText;
-    }
-  }
-
-  // ── Envoi de la réponse réseau vers l'API ───────────────────────
-
-  async function sendNetworkResponseToApi(text, config) {
-    if (!config.sessionId || !config.apiUrl || !config.apiKey) {
-      console.error("[AI Session Live] Missing config for network response");
-      return;
-    }
-
-    console.log("[AI Session Live] SENDING ASSISTANT RESPONSE VIA NETWORK");
-    console.log("[AI Session Live] Response length:", text.length);
-    console.log("[AI Session Live] Session ID:", config.sessionId);
-
-    try {
-      const response = await fetch(config.apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: config.sessionId,
-          contenu: text,
-          role: "assistant",
-          api_key: config.apiKey,
-          userId: currentUserId,
-        }),
-      });
-
-      if (response.ok) {
-        console.log("[AI Session Live] ✅ Network response sent successfully");
-      } else {
-        console.error("[AI Session Live] ❌ Network response send failed:", response.status);
-      }
-    } catch (error) {
-      console.error("[AI Session Live] ❌ Error sending network response:", error);
-    }
-  }
 
   // Auto-start if already active when page loads
   chrome.storage.local.get(["active"], (data) => {

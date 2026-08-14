@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "AI Session Live — Capture (NETWORK DEBUG)",
-  "version": "1.3.0-network-debug",
-  "description": "NETWORK DEBUG VERSION - Capture network responses from ChatGPT independent of DOM rendering.",
-  "permissions": ["storage", "activeTab", "webRequest"],
+  "name": "AI Session Live — Capture (CDP DEBUG)",
+  "version": "1.4.0-cdp-debug",
+  "description": "CDP DEBUG VERSION - Capture ChatGPT responses via Chrome DevTools Protocol independent of DOM rendering.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "debugger"
+  ],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
