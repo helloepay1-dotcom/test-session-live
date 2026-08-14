@@ -397,12 +397,12 @@
             return;
           }
 
-          console.log("[AI Session Live] SENDING MESSAGE TO OPENAI API:", message.contenu);
+          console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
 
-          // Envoyer le message à notre API OpenAI au lieu de l'injecter dans ChatGPT
-          sendToOpenAI(message.contenu);
+          const success =
+            injectTextIntoChatGPT(message.contenu);
 
-          if (true) {
+          if (success) {
             lastProcessedMessageId = message.id;
             console.log("[AI Session Live] MARKED AS PROCESSED:", message.id);
           }
@@ -411,34 +411,6 @@
       .catch(error => {
         console.error("[AI Session Live] POLLING ERROR:", error);
       });
-  }
-
-  function sendToOpenAI(message) {
-    const apiUrl = new URL(config.apiUrl);
-    const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
-    const openaiUrl = `${appUrl}/api/send-to-openai`;
-
-    console.log("[AI Session Live] Sending to OpenAI API:", openaiUrl);
-
-    fetch(openaiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: message,
-        userId: currentUserId,
-        sessionId: config.sessionId,
-      }),
-    })
-    .then(response => {
-      if (response.ok) {
-        console.log("[AI Session Live] Message sent to OpenAI API successfully");
-      } else {
-        console.error("[AI Session Live] Error sending to OpenAI API:", response.status);
-      }
-    })
-    .catch(error => {
-      console.error("[AI Session Live] Network error sending to OpenAI API:", error);
-    });
   }
 
   // ── Injection dans ChatGPT ───────────────────────────────────
@@ -823,7 +795,106 @@
       const result = sendMessageButton();
       console.log("[AI Session Live] 🧪 Résultat test bouton:", result);
     }
+
+    if (message.type === "NETWORK_RESPONSE_COMPLETE") {
+      // Réception de la réponse réseau complète depuis le service worker
+      console.log("[AI Session Live] NETWORK RESPONSE COMPLETE RECEIVED");
+      console.log("[AI Session Live] VISIBILITY STATE:", document.visibilityState);
+      console.log("[AI Session Live] RESPONSE LENGTH:", message.payload.text?.length || 0);
+      
+      const { text, config } = message.payload;
+      
+      if (!text || !config) {
+        console.error("[AI Session Live] Invalid network response payload");
+        return;
+      }
+
+      // Parser la réponse SSE pour extraire le contenu textuel
+      const parsedText = parseSSEResponse(text);
+      console.log("[AI Session Live] PARSED TEXT LENGTH:", parsedText.length);
+      console.log("[AI Session Live] PARSED TEXT PREVIEW:", parsedText.slice(0, 100) + "...");
+      
+      // Envoyer la réponse à l'API
+      sendNetworkResponseToApi(parsedText, config);
+    }
   });
+
+  // ── Parsing des réponses SSE de ChatGPT ───────────────────────
+
+  function parseSSEResponse(sseText) {
+    try {
+      // ChatGPT utilise le format SSE: data: {...}
+      const lines = sseText.split('\n');
+      let content = '';
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6); // Remove "data: "
+          
+          // Ignorer les signaux de fin
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            // Extraire le contenu du message selon la structure ChatGPT
+            if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta) {
+              content += parsed.choices[0].delta.content || '';
+            } else if (parsed.content) {
+              content += parsed.content;
+            } else if (parsed.message && parsed.message.content) {
+              content += parsed.message.content;
+            }
+          } catch (e) {
+            // Si ce n'est pas du JSON, ajouter directement
+            if (data && data !== '[DONE]') {
+              content += data;
+            }
+          }
+        }
+      }
+      
+      return content.trim();
+    } catch (error) {
+      console.error("[AI Session Live] Error parsing SSE response:", error);
+      // Fallback: retourner le texte brut
+      return sseText;
+    }
+  }
+
+  // ── Envoi de la réponse réseau vers l'API ───────────────────────
+
+  async function sendNetworkResponseToApi(text, config) {
+    if (!config.sessionId || !config.apiUrl || !config.apiKey) {
+      console.error("[AI Session Live] Missing config for network response");
+      return;
+    }
+
+    console.log("[AI Session Live] SENDING ASSISTANT RESPONSE VIA NETWORK");
+    console.log("[AI Session Live] Response length:", text.length);
+    console.log("[AI Session Live] Session ID:", config.sessionId);
+
+    try {
+      const response = await fetch(config.apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: config.sessionId,
+          contenu: text,
+          role: "assistant",
+          api_key: config.apiKey,
+          userId: currentUserId,
+        }),
+      });
+
+      if (response.ok) {
+        console.log("[AI Session Live] ✅ Network response sent successfully");
+      } else {
+        console.error("[AI Session Live] ❌ Network response send failed:", response.status);
+      }
+    } catch (error) {
+      console.error("[AI Session Live] ❌ Error sending network response:", error);
+    }
+  }
 
   // Auto-start if already active when page loads
   chrome.storage.local.get(["active"], (data) => {
