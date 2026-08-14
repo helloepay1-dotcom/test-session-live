@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Session Live — Capture (MAIN WORLD DIAGNOSTIC)",
-  "version": "1.5.0-main-world-diagnostic",
+  "version": "1.5.0",
   "description": "MAIN WORLD DIAGNOSTIC VERSION - Test fetch interception in ChatGPT MAIN world context.",
   "permissions": [
     "storage",
