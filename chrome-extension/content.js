@@ -866,4 +866,12 @@ async function getCurrentTabId() {
   chrome.storage.local.get(["active"], (data) => {
     if (data.active) startCapture();
   });
+
+  // Écouter les messages de l'application web pour arrêter la capture
+  window.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "AI_SESSION_LEAVE") {
+      console.log("[AI Session Live] Signal de départ de session reçu");
+      stopCapture();
+    }
+  });
 })();

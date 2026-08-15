@@ -256,6 +256,25 @@ export default function SessionPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Stop extension when leaving session ───────────────────
+  useEffect(() => {
+    // Function to signal extension to stop
+    const stopExtension = () => {
+      // Try to communicate with extension via postMessage
+      if (typeof window !== 'undefined') {
+        window.postMessage({
+          type: 'AI_SESSION_LEAVE',
+          sessionId: sessionId
+        }, '*');
+      }
+    };
+
+    // Stop when component unmounts (user leaves session)
+    return () => {
+      stopExtension();
+    };
+  }, [sessionId]);
+
   // ── Actions ───────────────────────────────────────────────
   const sendMessage = useCallback(
     async (contenu: string, role: "utilisateur" | "assistant" = "utilisateur") => {

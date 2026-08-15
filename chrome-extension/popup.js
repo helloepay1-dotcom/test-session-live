@@ -95,7 +95,10 @@ function setupAutoSave() {
 async function stopCaptureAndReset() {
   await chrome.storage.local.set({ 
     active: false,
-    sessionId: ""
+    sessionId: "",
+    sessionUrl: "",
+    apiUrl: "",
+    apiKey: ""
   });
   setStatus(false);
   
@@ -112,6 +115,11 @@ async function stopCaptureAndReset() {
   if (sessionInfoDiv) {
     sessionInfoDiv.style.display = "none";
   }
+  
+  // Vider les champs d'entrée
+  sessionUrlInput.value = "";
+  apiUrlInput.value = "";
+  apiKeyInput.value = "";
 }
 
 async function loadSettings() {
@@ -136,6 +144,9 @@ async function loadSettings() {
     // Réinitialiser automatiquement
     await stopCaptureAndReset();
     setStatus(false);
+    // Vider les champs pour forcer une nouvelle configuration
+    sessionUrlInput.value = "";
+    apiUrlInput.value = "";
   } else {
     setStatus(!!data.active);
   }
@@ -244,10 +255,14 @@ document.getElementById("clearSessionBtn").addEventListener("click", async () =>
     await chrome.storage.local.set({
       sessionUrl: "",
       sessionId: "",
+      apiUrl: "",
+      apiKey: "",
       active: false
     });
     
     sessionUrlInput.value = "";
+    apiUrlInput.value = "";
+    apiKeyInput.value = "";
     setStatus(false);
     
     const sessionInfoDiv = document.getElementById("currentSessionInfo");
