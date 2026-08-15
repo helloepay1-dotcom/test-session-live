@@ -733,6 +733,12 @@
       return;
     }
 
+    // Vérifier qu'on a une configuration valide
+    if (!data.sessionId || !data.apiUrl || !data.apiKey) {
+      console.log("[AI Session Live] ❌ Configuration invalide", data);
+      return;
+    }
+
     // Vérifier que l'URL de session correspond au sessionId stocké
     const currentUrl = window.location.href;
     const currentSessionId = currentUrl.match(/\/session\/([a-f0-9-]+)/i)?.[1];
@@ -745,11 +751,6 @@
     }
 
     console.log("[AI Session Live] 📦 Configuration chargée:", data);
-
-    if (!data.active) {
-      console.log("[AI Session Live] ❌ Capture non active, annulation");
-      return;
-    }
 
     config = {
       sessionId: data.sessionId,
@@ -824,6 +825,10 @@
         }
       });
     }
+    
+    // Réinitialiser la configuration locale
+    config = {};
+    currentUserId = null;
     
     console.log("[AI Session Live] Capture arrêtée et sets nettoyés");
   }

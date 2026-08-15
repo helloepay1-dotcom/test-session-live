@@ -132,6 +132,24 @@ async function loadSettings() {
     "userId",
   ]);
 
+  // Si l'extension est active, mais que nous n'avons pas de session valide, réinitialiser
+  if (data.active && (!data.sessionId || !data.sessionUrl)) {
+    console.log("[Popup] État invalide détecté - réinitialisation forcée");
+    await chrome.storage.local.set({
+      sessionUrl: "",
+      apiUrl: "",
+      apiKey: "",
+      sessionId: "",
+      userId: "",
+      active: false
+    });
+    sessionUrlInput.value = "";
+    apiUrlInput.value = "";
+    apiKeyInput.value = "";
+    setStatus(false);
+    return;
+  }
+
   // Utiliser les valeurs sauvegardées ou les défauts
   sessionUrlInput.value = data.sessionUrl || DEFAULTS.sessionUrl;
   apiUrlInput.value = data.apiUrl || DEFAULTS.apiUrl;
@@ -142,14 +160,22 @@ async function loadSettings() {
   if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
     console.log("[Popup] Incohérence détectée entre URL et sessionId stocké");
     // Réinitialiser automatiquement
-    await stopCaptureAndReset();
-    setStatus(false);
-    // Vider les champs pour forcer une nouvelle configuration
+    await chrome.storage.local.set({
+      sessionUrl: "",
+      apiUrl: "",
+      apiKey: "",
+      sessionId: "",
+      userId: "",
+      active: false
+    });
     sessionUrlInput.value = "";
     apiUrlInput.value = "";
-  } else {
-    setStatus(!!data.active);
+    apiKeyInput.value = "";
+    setStatus(false);
+    return;
   }
+  
+  setStatus(!!data.active);
   
   // Afficher l'info de session actuelle
   const sessionInfoDiv = document.getElementById("currentSessionInfo");
@@ -282,3 +308,27 @@ document.getElementById("clearSessionBtn").addEventListener("click", async () =>
 
 loadSettings();
 setupAutoSave();
+
+// Vérification périodique de cohérence
+setInterval(async () => {
+  const data = await chrome.storage.local.get(["active", "sessionId", "sessionUrl"]);
+  
+  if (data.active) {
+    // Si actif mais sans session valide, réinitialiser
+    if (!data.sessionId || !data.sessionUrl) {
+      console.log("[Popup] Vérification périodique: état invalide - réinitialisation");
+      await chrome.storage.local.set({
+        sessionUrl: "",
+        apiUrl: "",
+        apiKey: "",
+        sessionId: "",
+        userId: "",
+        active: false
+      });
+      sessionUrlInput.value = "";
+      apiUrlInput.value = "";
+      apiKeyInput.value = "";
+      setStatus(false);
+    }
+  }
+}, 5000); // Vérifier toutes les 5 secondes
