@@ -3,7 +3,7 @@
   "name": "AI Session Live — Capture",
   "version": "1.3.0",
   "description": "Capture les conversations ChatGPT, Claude.ai et Gemini AI et les envoie vers AI Session Live en temps réel.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "debugger"],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",

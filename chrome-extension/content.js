@@ -776,6 +776,20 @@
     isCapturing = true;
     startObserver();
 
+    // Demander l'attachement CDP pour capture en arrière-plan
+    if (chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: "ATTACH_CDP",
+        payload: {
+          tabId: await getCurrentTabId(),
+          sessionId: data.sessionId,
+          config: config
+        }
+      }).catch(err => {
+        console.log("[AI Session Live] CDP attach failed (normal if not supported):", err);
+      });
+    }
+
     console.log(
       "[AI Session Live] ✅ Capture démarrée —",
       getPlatform(),
@@ -797,8 +811,31 @@
     lastProcessedMessageId = null;
     lastAssistantText = "";
     
+    // Détacher CDP si attaché
+    if (chrome.runtime && chrome.runtime.sendMessage) {
+      getCurrentTabId().then(tabId => {
+        if (tabId) {
+          chrome.runtime.sendMessage({
+            type: "DETACH_CDP",
+            payload: { tabId }
+          }).catch(err => {
+            console.log("[AI Session Live] CDP detach failed:", err);
+          });
+        }
+      });
+    }
+    
     console.log("[AI Session Live] Capture arrêtée et sets nettoyés");
   }
+
+async function getCurrentTabId() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab?.id || null;
+  } catch {
+    return null;
+  }
+}
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "START_CAPTURE") startCapture();
