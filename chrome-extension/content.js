@@ -18,10 +18,6 @@
   let lastProcessedMessageId = null;
   let ourCapturedMessages = new Set(); // Pour éviter la boucle d'auto-injection
   let lastAssistantText = ""; // Pour le debugging de visibilité
-  let cdpAttached = false; // État de l'attachement CDP
-  let cdpProcessedMessages = new Set(); // Messages déjà traités par CDP
-  let mainWorldChunks = []; // Chunks reçus du MAIN world
-  let mainWorldRequestId = null; // Request ID courant du MAIN world
 
   // ── Debugging visibility tracking ──────────────────────────
   
@@ -34,75 +30,6 @@
     console.log("[E-ONEZEN]", context, "- VisibilityState:", document.visibilityState);
     console.log("[E-ONEZEN]", context, "- Dernier message assistant:", lastAssistantText.slice(0, 50) + "...");
     console.log("[E-ONEZEN]", context, "- Timestamp:", Date.now());
-  }
-
-  // ── CDP (Chrome DevTools Protocol) Integration ─────────────
-
-  async function attachCDP() {
-    if (cdpAttached) {
-      console.log("[AI Session Live][CDP] CDP already attached");
-      return;
-    }
-
-    try {
-      const tabId = await getCurrentTabId();
-      if (!tabId) {
-        console.error("[AI Session Live][CDP] Cannot get current tab ID");
-        return;
-      }
-
-      console.log("[AI Session Live][CDP] Requesting CDP attachment - Tab:", tabId);
-      console.log("[AI Session Live][CDP] VISIBILITY:", document.visibilityState);
-
-      const response = await chrome.runtime.sendMessage({
-        type: "ATTACH_CDP",
-        payload: {
-          tabId: tabId,
-          sessionId: config.sessionId,
-          config: config
-        }
-      });
-
-      if (response.success) {
-        cdpAttached = true;
-        console.log("[AI Session Live][CDP] CDP attached successfully");
-      } else {
-        console.error("[AI Session Live][CDP] CDP attachment failed:", response.error);
-      }
-    } catch (error) {
-      console.error("[AI Session Live][CDP] Error attaching CDP:", error);
-    }
-  }
-
-  async function detachCDP() {
-    if (!cdpAttached) return;
-
-    try {
-      const tabId = await getCurrentTabId();
-      if (!tabId) return;
-
-      console.log("[AI Session Live][CDP] Requesting CDP detachment - Tab:", tabId);
-
-      const response = await chrome.runtime.sendMessage({
-        type: "DETACH_CDP",
-        payload: { tabId: tabId }
-      });
-
-      if (response.success) {
-        cdpAttached = false;
-        console.log("[AI Session Live][CDP] CDP detached successfully");
-      }
-    } catch (error) {
-      console.error("[AI Session Live][CDP] Error detaching CDP:", error);
-    }
-  }
-
-  async function getCurrentTabId() {
-    return new Promise((resolve) => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        resolve(tabs[0]?.id || null);
-      });
-    });
   }
 
   // ── Platform detection ────────────────────────────────────
@@ -403,48 +330,57 @@
       return;
     }
 
-    const apiUrl = new URL(config.apiUrl);
-    const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
+    // Vérifier que la session est toujours active (éviter de poller une ancienne session)
+    chrome.storage.local.get(["active", "sessionId"], (data) => {
+      if (!data.active || data.sessionId !== config.sessionId) {
+        console.log("[AI Session Live] POLLING STOPPED - session inactive or changed");
+        stopCapture();
+        return;
+      }
 
-    const pollUrl =
-      `${appUrl}/api/poll-messages` +
-      `?session_id=${encodeURIComponent(config.sessionId)}` +
-      `&user_id=${encodeURIComponent(currentUserId)}`;
+      // Continuer le polling seulement si la session est valide
+      const apiUrl = new URL(config.apiUrl);
+      const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
 
-    console.log("[AI Session Live] POLLING URL:", pollUrl);
+      const pollUrl =
+        `${appUrl}/api/poll-messages` +
+        `?session_id=${encodeURIComponent(config.sessionId)}` +
+        `&user_id=${encodeURIComponent(currentUserId)}`;
 
-    fetch(pollUrl)
-      .then(response => {
-        console.log("[AI Session Live] POLLING STATUS:", response.status);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+      console.log("[AI Session Live] POLLING URL:", pollUrl);
 
-        return response.json();
-      })
-      .then(data => {
+      fetch(pollUrl)
+        .then(response => {
+          console.log("[AI Session Live] POLLING STATUS:", response.status);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
 
-        console.log("[AI Session Live] POLLING RESPONSE:", data);
+          return response.json();
+        })
+        .then(data => {
 
-        if (!Array.isArray(data.messages)) {
-          console.log("[AI Session Live] NO MESSAGES ARRAY");
-          return;
-        }
+          console.log("[AI Session Live] POLLING RESPONSE:", data);
 
-        console.log("[AI Session Live] MESSAGES COUNT:", data.messages.length);
-        
-        data.messages.forEach(message => {
-
-          console.log("[AI Session Live] MESSAGE RECEIVED:", message);
-
-          // Ignorer nos propres messages
-          if (
-            String(message.auteur_id) ===
-            String(currentUserId)
-          ) {
-            console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
+          if (!Array.isArray(data.messages)) {
+            console.log("[AI Session Live] NO MESSAGES ARRAY");
             return;
+          }
+
+          console.log("[AI Session Live] MESSAGES COUNT:", data.messages.length);
+          
+          data.messages.forEach(message => {
+
+            console.log("[AI Session Live] MESSAGE RECEIVED:", message);
+
+            // Ignorer nos propres messages
+            if (
+              String(message.auteur_id) ===
+              String(currentUserId)
+            ) {
+              console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
+              return;
           }
 
           // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
@@ -484,6 +420,7 @@
       .catch(error => {
         console.error("[AI Session Live] POLLING ERROR:", error);
       });
+    });
   }
 
   // ── Injection dans ChatGPT ───────────────────────────────────
@@ -790,6 +727,23 @@
       "userId",
     ]);
 
+    // Vérifier que la capture est toujours active
+    if (!data.active) {
+      console.log("[AI Session Live] ❌ Capture non active, abandon");
+      return;
+    }
+
+    // Vérifier que l'URL de session correspond au sessionId stocké
+    const currentUrl = window.location.href;
+    const currentSessionId = currentUrl.match(/\/session\/([a-f0-9-]+)/i)?.[1];
+    
+    if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
+      console.log("[AI Session Live] ❌ Session ID mismatch:", data.sessionId, "vs", currentSessionId);
+      console.log("[AI Session Live] ⚠️ Arrêt de la capture (session changée)");
+      stopCapture();
+      return;
+    }
+
     console.log("[AI Session Live] 📦 Configuration chargée:", data);
 
     if (!data.active) {
@@ -811,7 +765,6 @@
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
-    cdpProcessedMessages.clear();
 
     console.log("[AI Session Live] ⚙️ Config finale:", {
       sessionId: config.sessionId,
@@ -822,13 +775,6 @@
 
     isCapturing = true;
     startObserver();
-
-    // Attacher CDP pour ChatGPT (background capture)
-    const platform = getPlatform();
-    if (platform === "chatgpt") {
-      console.log("[AI Session Live][CDP] Attaching CDP for ChatGPT background capture");
-      await attachCDP();
-    }
 
     console.log(
       "[AI Session Live] ✅ Capture démarrée —",
@@ -844,17 +790,12 @@
     isCapturing = false;
     stopObserver();
     
-    // Détacher CDP
-    if (cdpAttached) {
-      detachCDP();
-    }
-    
     // Nettoyer les sets
     sentMessages.clear();
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
-    cdpProcessedMessages.clear();
+    lastAssistantText = "";
     
     console.log("[AI Session Live] Capture arrêtée et sets nettoyés");
   }
@@ -881,72 +822,6 @@
       console.log("[AI Session Live] 🧪 Platform:", getPlatform());
       const result = sendMessageButton();
       console.log("[AI Session Live] 🧪 Résultat test bouton:", result);
-    }
-
-    if (message.type === "CDP_ASSISTANT_RESPONSE") {
-      // Réception de la réponse CDP depuis le service worker
-      console.log("[AI Session Live][CDP] CDP ASSISTANT RESPONSE RECEIVED");
-      console.log("[AI Session Live][CDP] VISIBILITY:", document.visibilityState);
-      console.log("[AI Session Live][CDP] TEXT LENGTH:", message.text?.length || 0);
-      console.log("[AI Session Live][CDP] MESSAGE ID:", message.messageId);
-      
-      const { text, sessionId, tabId, messageId } = message;
-      
-      // Vérifier que c'est la bonne session
-      if (sessionId !== config.sessionId) {
-        console.warn("[AI Session Live][CDP] Session mismatch, ignoring response");
-        return;
-      }
-
-      // Vérifier la déduplication
-      const messageHash = getMessageHash(text, "assistant");
-      if (cdpProcessedMessages.has(messageHash)) {
-        console.warn("[AI Session Live][CDP] Duplicate CDP message, ignoring");
-        return;
-      }
-      
-      cdpProcessedMessages.add(messageHash);
-      
-      // Envoyer via le système SEND_MESSAGE existant
-      console.log("[AI Session Live][CDP] SENDING ASSISTANT RESPONSE");
-      sendMessage(text, "assistant");
-    }
-  });
-
-  // ── Communication MAIN world ←→ content script ───────────
-
-  window.addEventListener("message", (event) => {
-    if (event.source !== window) return;
-
-    const data = event.data;
-    if (!data) return;
-
-    if (data.type === "AI_SESSION_LIVE_STREAM_CHUNK") {
-      console.log("[AI Session Live][MAIN WORLD] Chunk reçu:", data.chunkNumber);
-      console.log("[AI Session Live][MAIN WORLD] Visibility:", data.visibility);
-      console.log("[AI Session Live][MAIN WORLD] Chunk preview:", data.chunkText.slice(0, 50));
-      
-      mainWorldRequestId = data.requestId;
-      mainWorldChunks.push({
-        number: data.chunkNumber,
-        text: data.chunkText,
-        visibility: data.visibility
-      });
-    }
-
-    if (data.type === "AI_SESSION_LIVE_STREAM_FINISHED") {
-      console.log("[AI Session Live][MAIN WORLD] Stream terminé");
-      console.log("[AI Session Live][MAIN WORLD] Total chunks:", data.chunkCount);
-      console.log("[AI Session Live][MAIN WORLD] Visibility finale:", data.visibility);
-      
-      // Reconstruire le texte complet
-      const fullText = mainWorldChunks.map(c => c.text).join('');
-      console.log("[AI Session Live][MAIN WORLD] Texte complète length:", fullText.length);
-      console.log("[AI Session Live][MAIN WORLD] Texte complète preview:", fullText.slice(0, 100));
-      
-      // Réinitialiser
-      mainWorldChunks = [];
-      mainWorldRequestId = null;
     }
   });
 

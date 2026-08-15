@@ -48,28 +48,70 @@ function deriveApiUrl(sessionUrl) {
 
 // Sauvegarde automatique pendant la saisie
 function setupAutoSave() {
+  let lastSessionId = null;
+  
   // Dès que l'URL de session change, déduire l'URL de l'API
-  sessionUrlInput.addEventListener('input', () => {
+  sessionUrlInput.addEventListener('input', async () => {
     const apiUrl = deriveApiUrl(sessionUrlInput.value);
     apiUrlInput.value = apiUrl;
     
-    chrome.storage.local.set({
-      sessionUrl: sessionUrlInput.value,
-      apiUrl: apiUrl,
-      apiKey: apiKeyInput.value
-    });
+    const newSessionId = extractSessionId(sessionUrlInput.value);
+    
+    // Détection de changement de session
+    if (lastSessionId && newSessionId && lastSessionId !== newSessionId) {
+      console.log("[Popup] Session ID changé, arrêt de la capture");
+      await stopCaptureAndReset();
+    }
+    
+    lastSessionId = newSessionId;
+    
+    // Sauvegarder seulement si la capture n'est pas active
+    const data = await chrome.storage.local.get(["active"]);
+    if (!data.active) {
+      chrome.storage.local.set({
+        sessionUrl: sessionUrlInput.value,
+        apiUrl: apiUrl,
+        apiKey: apiKeyInput.value
+      });
+    }
   });
   
   // Pour les autres champs
   [apiUrlInput, apiKeyInput].forEach(input => {
-    input.addEventListener('input', () => {
-      chrome.storage.local.set({
-        sessionUrl: sessionUrlInput.value,
-        apiUrl: apiUrlInput.value,
-        apiKey: apiKeyInput.value
-      });
+    input.addEventListener('input', async () => {
+      const data = await chrome.storage.local.get(["active"]);
+      if (!data.active) {
+        chrome.storage.local.set({
+          sessionUrl: sessionUrlInput.value,
+          apiUrl: apiUrlInput.value,
+          apiKey: apiKeyInput.value
+        });
+      }
     });
   });
+}
+
+// Arrêter la capture et réinitialiser
+async function stopCaptureAndReset() {
+  await chrome.storage.local.set({ 
+    active: false,
+    sessionId: ""
+  });
+  setStatus(false);
+  
+  // Arrêter la capture sur tous les onglets
+  const tabs = await chrome.tabs.query({});
+  tabs.forEach(tab => {
+    if (tab.id) {
+      chrome.tabs.sendMessage(tab.id, { type: "STOP_CAPTURE" }).catch(() => {});
+    }
+  });
+  
+  // Réinitialiser l'affichage
+  const sessionInfoDiv = document.getElementById("currentSessionInfo");
+  if (sessionInfoDiv) {
+    sessionInfoDiv.style.display = "none";
+  }
 }
 
 async function loadSettings() {
@@ -87,13 +129,22 @@ async function loadSettings() {
   apiUrlInput.value = data.apiUrl || DEFAULTS.apiUrl;
   apiKeyInput.value = data.apiKey || DEFAULTS.apiKey;
   
-  setStatus(!!data.active);
+  // Vérifier si l'URL de session correspond au sessionId stocké
+  const currentSessionId = extractSessionId(sessionUrlInput.value);
+  if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
+    console.log("[Popup] Incohérence détectée entre URL et sessionId stocké");
+    // Réinitialiser automatiquement
+    await stopCaptureAndReset();
+    setStatus(false);
+  } else {
+    setStatus(!!data.active);
+  }
   
   // Afficher l'info de session actuelle
   const sessionInfoDiv = document.getElementById("currentSessionInfo");
   const sessionIdDiv = document.getElementById("currentSessionId");
   
-  if (data.sessionId) {
+  if (data.sessionId && data.active) {
     sessionInfoDiv.style.display = "block";
     sessionIdDiv.textContent = data.sessionId;
   } else {
@@ -102,16 +153,10 @@ async function loadSettings() {
 }
 
 toggleBtn.addEventListener("click", async () => {
-  const data = await chrome.storage.local.get(["active"]);
+  const data = await chrome.storage.local.get(["active", "userId"]);
 
   if (data.active) {
-    await chrome.storage.local.set({ active: false });
-    setStatus(false);
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: "STOP_CAPTURE" }).catch(() => {});
-    }
+    await stopCaptureAndReset();
     return;
   }
 
@@ -152,6 +197,14 @@ toggleBtn.addEventListener("click", async () => {
   });
 
   setStatus(true);
+
+  // Afficher l'info de session
+  const sessionInfoDiv = document.getElementById("currentSessionInfo");
+  const sessionIdDiv = document.getElementById("currentSessionId");
+  if (sessionInfoDiv && sessionIdDiv) {
+    sessionInfoDiv.style.display = "block";
+    sessionIdDiv.textContent = sessionId;
+  }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) {
