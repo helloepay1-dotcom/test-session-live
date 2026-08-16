@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  const DEBOUNCE_MS = 1500;
+  const DEBOUNCE_MS = 2500; // Augmenté pour éviter les doublons
   const sentMessages = new Set();
   const pendingAssistant = new Map(); // element -> { timer, lastText, role }
 
@@ -138,7 +138,7 @@
 
     // Gemini user messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user']")
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container")
       .forEach((el) => {
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -149,10 +149,10 @@
 
     // Gemini assistant messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model']")
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container")
       .forEach((el) => {
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container")) return;
         const text = getCleanText(el);
         if (text && text.length > 1) {
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
@@ -164,7 +164,7 @@
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .input-wrapper, .output-wrapper")
         .forEach((el, i) => {
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
@@ -629,13 +629,16 @@
     const geminiSelectors = [
       'button[aria-label="Send message"]',
       'button[aria-label*="send"]',
+      'button[aria-label*="Envoyer"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
       'button:has(svg[data-icon="send"])',
       'button:has(svg)',
       'button[class*="send"]',
       'button:has([class*="send"])',
-      'button svg'
+      'button svg',
+      'div[role="button"][class*="send"]',
+      'div[role="button"]:has(svg)'
     ];
 
     let selectors;
