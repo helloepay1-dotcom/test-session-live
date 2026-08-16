@@ -136,9 +136,9 @@
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
-    // Gemini user messages
+    // Gemini user messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query")
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user']")
       .forEach((el) => {
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -147,12 +147,12 @@
         }
       });
 
-    // Gemini assistant messages
+    // Gemini assistant messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content")
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model']")
       .forEach((el) => {
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
         const text = getCleanText(el);
         if (text && text.length > 1) {
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
@@ -164,7 +164,7 @@
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response")
         .forEach((el, i) => {
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
@@ -242,7 +242,15 @@
       return;
     }
 
-    console.log("[AI Session Live] 📤 Envoi message:", role, contenu.slice(0, 80) + "...", "userId:", currentUserId);
+    // Vérification supplémentaire pour éviter la pollution entre sessions
+    const data = chrome.storage.local.get(["sessionId"]);
+    if (data.sessionId && data.sessionId !== config.sessionId) {
+      console.log("[AI Session Live] ❌ Session mismatch detected - stopping send");
+      stopCapture();
+      return;
+    }
+
+    console.log("[AI Session Live] 📤 Envoi message:", role, contenu.slice(0, 80) + "...", "userId:", currentUserId, "sessionId:", config.sessionId);
 
     chrome.runtime.sendMessage({
       type: "SEND_MESSAGE",
@@ -383,6 +391,12 @@
               return;
           }
 
+          // Vérifier que le message appartient à la bonne session
+          if (String(message.session_id) !== String(config.sessionId)) {
+            console.log("[AI Session Live] SKIPPED (wrong session):", message.session_id, "!=", config.sessionId);
+            return;
+          }
+
           // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
           const messageHash = getMessageHash(message.contenu, message.role);
           if (ourCapturedMessages.has(messageHash)) {
@@ -447,8 +461,10 @@
     // Sélecteurs spécifiques pour Gemini
     const geminiSelectors = [
       'div[contenteditable="true"][data-testid="user-input"]',
-      'div[contenteditable="true"][data-placeholder="Message Gemini…"]',
+      'div[contenteditable="true"][data-placeholder*="Message"]',
       'div[contenteditable="true"][data-placeholder*="Enter"]',
+      'div[contenteditable="true"][role="textbox"]',
+      'div[contenteditable="true"][class*="input"]',
       'div[contenteditable="true"]',
       'textarea',
       'input[type="text"]'
