@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  const DEBOUNCE_MS = 2500; // Augmenté pour éviter les doublons
+  const DEBOUNCE_MS = 3000; // Augmenté pour éviter les doublons
   const sentMessages = new Set();
   const pendingAssistant = new Map(); // element -> { timer, lastText, role }
 
