@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS messages (
   contenu       TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('utilisateur', 'assistant')),
   auteur_id     TEXT,
-  date_creation TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  date_creation TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_at       TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);

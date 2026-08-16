@@ -19,11 +19,13 @@ export async function GET(request: NextRequest) {
     const supabase = createServerClient();
 
     // Récupérer tous les messages utilisateur récents sauf ceux de l'utilisateur actuel
+    // ET qui n'ont pas encore été envoyés (sent_at IS NULL)
     let query = supabase
       .from("messages")
       .select("*")
       .eq("session_id", sessionId)
       .eq("role", "utilisateur")
+      .is("sent_at", null)
       .order("date_creation", { ascending: false })
       .limit(10);
 

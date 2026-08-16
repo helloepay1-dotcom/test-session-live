@@ -133,44 +133,76 @@
 
   function extractGeminiMessages() {
     const results = [];
+    const seenElements = new Set();
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
-    // Gemini user messages - sélecteurs mis à jour pour Gemini actuel
-    document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container, .user-input, .query-text, .input-area")
-      .forEach((el) => {
+    // Gemini user messages - sélecteurs ciblés pour les messages envoyés (pas l'input actuel)
+    const userSelectors = [
+      "[data-test-id='user-turn']",
+      ".user-message",
+      ".model-input-user-query",
+      ".qe-user-query",
+      "[data-test-id*='user']"
+    ];
+
+    userSelectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach((el) => {
+        // Ignorer si c'est dans un élément déjà vu (éviter les doublons)
+        if (seenElements.has(el)) return;
+        
+        // Ignorer si c'est l'input actuel (vérifier s'il est contenteditable)
+        if (el.querySelector('[contenteditable="true"]')) return;
+        
         const text = getCleanText(el);
         if (text && text.length > 1) {
           console.log("[AI Session Live] 📝 Gemini user message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "utilisateur" });
+          seenElements.add(el);
         }
       });
+    });
 
-    // Gemini assistant messages - sélecteurs mis à jour pour Gemini actuel
-    document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container, .response-text, .gemini-response, .ai-response")
-      .forEach((el) => {
+    // Gemini assistant messages - sélecteurs ciblés et déduplication
+    const assistantSelectors = [
+      "[data-test-id='model-turn']",
+      ".model-response",
+      ".response-content",
+      ".model-annotation",
+      "[data-test-id*='model']"
+    ];
+
+    assistantSelectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach((el) => {
+        // Ignorer si c'est dans un élément déjà vu
+        if (seenElements.has(el)) return;
+        
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container") || el.closest(".user-input")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
+        
         const text = getCleanText(el);
         if (text && text.length > 1) {
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "assistant" });
+          seenElements.add(el);
         }
       });
+    });
 
     // Fallback: Try generic message containers
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .input-wrapper, .output-wrapper")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article")
         .forEach((el, i) => {
+          if (seenElements.has(el)) return;
+          
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
           const role = i % 2 === 0 ? "utilisateur" : "assistant";
           console.log("[AI Session Live] 🔄 Fallback Gemini message:", role, text.slice(0, 30));
           results.push({ element: el, text, role });
+          seenElements.add(el);
         });
     }
 
@@ -426,14 +458,50 @@
             injectTextIntoChatGPT(message.contenu);
 
           if (success) {
-            lastProcessedMessageId = message.id;
-            console.log("[AI Session Live] MARKED AS PROCESSED:", message.id);
+            // Marquer le message comme envoyé côté serveur
+            markMessageAsSent(message.id);
+            console.log("[AI Session Live] MARKED AS SENT:", message.id);
           }
         });
       })
       .catch(error => {
         console.error("[AI Session Live] POLLING ERROR:", error);
       });
+    });
+  }
+
+  // ── Marquer un message comme envoyé côté serveur ──────────────
+
+  function markMessageAsSent(messageId) {
+    const apiUrl = new URL(config.apiUrl);
+    const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
+
+    const markUrl = `${appUrl}/api/mark-message-sent`;
+
+    console.log("[AI Session Live] MARKING MESSAGE AS SENT:", messageId);
+
+    fetch(markUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messageId: messageId,
+        userId: currentUserId
+      })
+    })
+    .then(response => {
+      console.log("[AI Session Live] MARK MESSAGE STATUS:", response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log("[AI Session Live] MARK MESSAGE RESPONSE:", data);
+    })
+    .catch(error => {
+      console.error("[AI Session Live] MARK MESSAGE ERROR:", error);
     });
   }
 
@@ -543,10 +611,11 @@
       
       console.log("[AI Session Live] ✅ Injection contenteditable (", platform, ")");
       
-      // Laisser le framework mettre à jour son état
+      // Laisser le framework mettre à jour son état (délai augmenté pour Gemini)
+      const delay = platform === "gemini" ? 800 : 300;
       setTimeout(() => {
         sendMessageButton();
-      }, 300);
+      }, delay);
       
       return true;
     }
@@ -611,9 +680,8 @@
       'button[aria-label="Send message"]',
       'button[aria-label*="Send"]',
       'button[type="submit"]',
-      'button svg[data-icon="send"]',
-      'button[class*="send"]',
-      'button:has(svg)'
+      'button[aria-label*="Submit"]',
+      'button[class*="send"]'
     ];
 
     // Sélecteurs spécifiques pour Claude
@@ -621,8 +689,10 @@
       'button[aria-label="Send message"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
-      'button:has(svg)',
-      'button[class*="send"]'
+      'button[aria-label*="Submit"]',
+      'button[class*="send"]',
+      'div[role="button"][aria-label*="Send"]',
+      'div[role="button"][aria-label*="Submit"]'
     ];
 
     // Sélecteurs spécifiques pour Gemini
@@ -632,13 +702,13 @@
       'button[aria-label*="Envoyer"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
-      'button:has(svg[data-icon="send"])',
-      'button:has(svg)',
+      'button[aria-label*="Submit"]',
+      'button[aria-label*="submit"]',
+      'div[role="button"][aria-label*="send"]',
+      'div[role="button"][aria-label*="Envoyer"]',
+      'div[role="button"][aria-label*="Submit"]',
       'button[class*="send"]',
-      'button:has([class*="send"])',
-      'button svg',
-      'div[role="button"][class*="send"]',
-      'div[role="button"]:has(svg)'
+      'div[role="button"][class*="send"]'
     ];
 
     let selectors;
@@ -655,22 +725,31 @@
 
     for (const selector of selectors) {
       try {
-        const buttons = document.querySelectorAll(selector);
+        const elements = document.querySelectorAll(selector);
         
-        for (const button of buttons) {
+        for (const element of elements) {
+          // Ignorer les éléments SVG (pas des boutons)
+          if (element.tagName === 'SVG' || element.tagName === 'svg') continue;
+          
+          // Ignorer les éléments qui sont à l'intérieur d'un bouton (éviter de sélectionner un child)
+          if (element.closest('button') && element.tagName !== 'BUTTON') continue;
+          
           if (
-            button &&
-            !button.disabled &&
-            button.getAttribute("aria-disabled") !== "true" &&
-            button.offsetParent !== null // Bouton visible
+            element &&
+            !element.disabled &&
+            element.getAttribute("aria-disabled") !== "true" &&
+            element.offsetParent !== null // Élément visible
           ) {
-            sendButton = button;
+            sendButton = element;
             foundSelector = selector;
             console.log(
               "[AI Session Live] ✅ Bouton trouvé:",
               selector,
               "platform:",
-              platform
+              platform,
+              "element:",
+              element.tagName,
+              element.className
             );
             break;
           }
