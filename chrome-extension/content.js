@@ -504,18 +504,22 @@
   }
 
   function injectTextIntoChatGPT(text) {
+    const platform = getPlatform();
     const composer = findAIComposer();
 
     if (!composer) {
       console.error(
-        "[AI Session Live] ❌ Compositeur introuvable"
+        "[AI Session Live] ❌ Compositeur introuvable pour",
+        platform
       );
       return false;
     }
 
     console.log(
       "[AI Session Live] 📝 Injection :",
-      text
+      text,
+      "platform:",
+      platform
     );
 
     composer.focus();
@@ -523,84 +527,78 @@
     // ─────────────────────────────────────────────
     // CAS 1 : contenteditable
     // ─────────────────────────────────────────────
-
-    if (
-      composer.isContentEditable ||
-      composer.getAttribute("contenteditable") === "true"
-    ) {
-      // Sélectionner tout le contenu existant
+    if (composer.getAttribute("contenteditable") === "true") {
+      // Méthode modern pour Gemini et Claude
       const selection = window.getSelection();
       const range = document.createRange();
-
       range.selectNodeContents(composer);
-
       selection.removeAllRanges();
       selection.addRange(range);
-
-      // Remplace le contenu en utilisant l'API d'édition du navigateur.
-      // Cela est généralement mieux reconnu par les éditeurs React
-      // que composer.textContent = text.
-      const inserted = document.execCommand(
-        "insertText",
-        false,
-        text
-      );
-
-      // Fallback si execCommand n'a pas fonctionné
-      if (!inserted) {
-        composer.textContent = text;
-
-        composer.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            inputType: "insertText",
-            data: text
-          })
-        );
-      }
-
-      // Vérification
-      console.log(
-        "[AI Session Live] Contenu actuel :",
-        composer.innerText
-      );
-
-    // ─────────────────────────────────────────────
-    // CAS 2 : textarea
-    // ─────────────────────────────────────────────
-
-    } else if (composer instanceof HTMLTextAreaElement) {
-
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
-        "value"
-      )?.set;
-
-      if (setter) {
-        setter.call(composer, text);
-      } else {
-        composer.value = text;
-      }
-
-      composer.dispatchEvent(
-        new Event("input", {
-          bubbles: true
-        })
-      );
-
-      composer.dispatchEvent(
-        new Event("change", {
-          bubbles: true
-        })
-      );
+      
+      composer.textContent = text;
+      
+      // Événements pour React/Gemini
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      composer.dispatchEvent(new Event("change", { bubbles: true }));
+      
+      console.log("[AI Session Live] ✅ Injection contenteditable (", platform, ")");
+      
+      // Laisser le framework mettre à jour son état
+      setTimeout(() => {
+        sendMessageButton();
+      }, 300);
+      
+      return true;
     }
 
-    // Laisser React/ChatGPT mettre à jour son état
-    setTimeout(() => {
-      sendMessageButton();
-    }, 300);
+    // ─────────────────────────────────────────────
+    // CAS 2 : textarea (ChatGPT)
+    // ─────────────────────────────────────────────
+    if (composer.tagName === "TEXTAREA") {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value"
+      ).set;
 
-    return true;
+      nativeInputValueSetter.call(composer, text);
+
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      composer.dispatchEvent(new Event("change", { bubbles: true }));
+
+      console.log("[AI Session Live] ✅ Injection textarea");
+
+      setTimeout(() => {
+        sendMessageButton();
+      }, 300);
+
+      return true;
+    }
+
+    // ─────────────────────────────────────────────
+    // CAS 3 : input type text
+    // ─────────────────────────────────────────────
+    if (composer.tagName === "INPUT" && composer.type === "text") {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      ).set;
+
+      nativeInputValueSetter.call(composer, text);
+
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      composer.dispatchEvent(new Event("change", { bubbles: true }));
+
+      console.log("[AI Session Live] ✅ Injection input text");
+
+      setTimeout(() => {
+        sendMessageButton();
+      }, 300);
+
+      return true;
+    }
+
+    console.error("[AI Session Live] ❌ Type d'élément non supporté:", composer.tagName);
+    return false;
   }
 
   function sendMessageButton() {
@@ -630,11 +628,13 @@
     // Sélecteurs spécifiques pour Gemini
     const geminiSelectors = [
       'button[aria-label="Send message"]',
+      'button[aria-label*="send"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
       'button:has(svg[data-icon="send"])',
       'button:has(svg)',
       'button[class*="send"]',
+      'button:has([class*="send"])',
       'button svg'
     ];
 
