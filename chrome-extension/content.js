@@ -138,7 +138,7 @@
 
     // Gemini user messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container")
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container, .user-input, .query-text, .input-area")
       .forEach((el) => {
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -149,10 +149,10 @@
 
     // Gemini assistant messages - sélecteurs mis à jour pour Gemini actuel
     document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container")
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container, .response-text, .gemini-response, .ai-response")
       .forEach((el) => {
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container") || el.closest(".user-input")) return;
         const text = getCleanText(el);
         if (text && text.length > 1) {
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
