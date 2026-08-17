@@ -875,7 +875,9 @@
     isCapturing = true;
     startObserver();
 
-    // Demander l'attachement CDP pour capture en arrière-plan
+    // CDP désactivé - l'extraction DOM fonctionne déjà
+    // Le code CDP expérimental peut interférer avec le fonctionnement normal
+    /*
     if (chrome.runtime && chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({
         type: "ATTACH_CDP",
@@ -888,6 +890,7 @@
         console.log("[AI Session Live] CDP attach failed (normal if not supported):", err);
       });
     }
+    */
 
     console.log(
       "[AI Session Live] ✅ Capture démarrée —",
@@ -910,7 +913,8 @@
     lastProcessedMessageId = null;
     lastAssistantText = "";
     
-    // Détacher CDP si attaché
+    // CDP désactivé - l'extraction DOM fonctionne déjà
+    /*
     if (chrome.runtime && chrome.runtime.sendMessage) {
       getCurrentTabId().then(tabId => {
         if (tabId) {
@@ -923,6 +927,7 @@
         }
       });
     }
+    */
     
     // Réinitialiser la configuration locale
     config = {};

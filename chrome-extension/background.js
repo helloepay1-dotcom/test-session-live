@@ -1,15 +1,5 @@
-// Service worker — relaie les messages capturés vers l'API + capture CDP
-// État CDP par onglet
-const cdpSessions = new Map(); // tabId -> { state, debuggerAttached, sessionId, config, requestId, buffer, messageId }
-
-// Machine d'état CDP
-const CDP_STATE = {
-  IDLE: 'IDLE',
-  REQUEST_DETECTED: 'REQUEST_DETECTED',
-  STREAMING: 'STREAMING',
-  COMPLETED: 'COMPLETED',
-  SENT: 'SENT'
-};
+// Service worker — relaie les messages capturés vers l'API
+// CDP désactivé - l'extraction DOM fonctionne déjà pour ChatGPT, Claude et Gemini
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "SEND_MESSAGE") {
@@ -42,6 +32,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  // CDP handlers désactivés - l'extraction DOM fonctionne déjà
+  /*
   if (message.type === "ATTACH_CDP") {
     // Demande d'attachement CDP depuis content script
     const { tabId, sessionId, config } = message.payload;
@@ -59,6 +51,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+  */
 });
 
 // ── API vers Vercel (existante) ─────────────────────────────
@@ -86,6 +79,19 @@ async function sendToApi(payload) {
 }
 
 // ── Chrome DevTools Protocol (CDP) Implementation ─────────
+// Désactivé - l'extraction DOM fonctionne déjà pour ChatGPT, Claude et Gemini
+/*
+// État CDP par onglet
+const cdpSessions = new Map(); // tabId -> { state, debuggerAttached, sessionId, config, requestId, buffer, messageId }
+
+// Machine d'état CDP
+const CDP_STATE = {
+  IDLE: 'IDLE',
+  REQUEST_DETECTED: 'REQUEST_DETECTED',
+  STREAMING: 'STREAMING',
+  COMPLETED: 'COMPLETED',
+  SENT: 'SENT'
+};
 
 async function attachDebugger(tabId, sessionId, config) {
   console.log("[AI Session Live][CDP] DEBUGGER ATTACHING - Tab:", tabId);
@@ -247,178 +253,72 @@ async function getResponseBody(tabId, requestId) {
     console.log("[AI Session Live][CDP] RAW RESPONSE PREVIEW:", responseBody.slice(0, 500));
 
     // Parser la réponse SSE
-    const parsedText = parseSSEResponse(responseBody);
+    const parsedText = parseSSE(responseBody);
     
-    console.log("[AI Session Live][CDP] PARSED TEXT LENGTH:", parsedText.length);
-    console.log("[AI Session Live][CDP] PARSED TEXT PREVIEW:", parsedText.slice(0, 100) + "...");
-    console.log("[AI Session Live][CDP] FINAL RESPONSE LENGTH:", parsedText.length);
-
-    if (parsedText.length > 0) {
-      cdpSession.state = CDP_STATE.COMPLETED;
-      cdpSession.buffer = parsedText;
+    if (parsedText) {
+      console.log("[AI Session Live][CDP] PARSED TEXT LENGTH:", parsedText.length);
+      console.log("[AI Session Live][CDP] PARSED TEXT PREVIEW:", parsedText.slice(0, 200));
       
-      // Envoyer la réponse au content script
-      sendCDPResponseToContent(tabId, parsedText);
-    } else {
-      console.error("[AI Session Live][CDP] Empty parsed response");
-      cdpSession.state = CDP_STATE.IDLE;
+      // Envoyer le texte extrait vers l'API
+      cdpSession.messageId = await sendToApi({
+        apiUrl: cdpSession.config.apiUrl,
+        apiKey: cdpSession.config.apiKey,
+        sessionId: cdpSession.sessionId,
+        contenu: parsedText,
+        role: "assistant"
+      });
+      
+      cdpSession.state = CDP_STATE.SENT;
+      console.log("[AI Session Live][CDP] MESSAGE SENT TO API");
     }
-
   } catch (error) {
     console.error("[AI Session Live][CDP] Error getting response body:", error);
-    cdpSession.state = CDP_STATE.IDLE;
   }
+}
+
+function parseSSE(sseData) {
+  if (!sseData) return "";
+  
+  // Parser le format Server-Sent Events de ChatGPT
+  const lines = sseData.split('\n');
+  let fullText = "";
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const data = line.slice(6);
+      
+      // Ignorer les messages de contrôle
+      if (data === '[DONE]') continue;
+      
+      try {
+        const parsed = JSON.parse(data);
+        
+        // Extraire le contenu delta de ChatGPT
+        if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta) {
+          const delta = parsed.choices[0].delta;
+          if (delta.content) {
+            fullText += delta.content;
+          }
+        }
+      } catch (e) {
+        // Ignorer les lignes qui ne sont pas du JSON valide
+      }
+    }
+  }
+  
+  return fullText.trim();
 }
 
 function isChatGPTAPIRequest(request) {
-  const url = request.url.toLowerCase();
-  const method = request.method?.toLowerCase();
+  if (!request.url) return false;
   
-  // Vérifier l'URL
-  if (!url.includes("backend-api/conversation") && 
-      !url.includes("chat/completions") &&
-      !url.includes("v1/chat/completions")) {
-    return false;
-  }
-
-  // Vérifier la méthode
-  if (method !== "post") return false;
-
-  // Vérifier les headers
-  const contentType = request.headers?.find(h => 
-    h.name.toLowerCase() === "content-type"
-  );
+  // Patterns pour détecter les requêtes ChatGPT API
+  const chatGPTPatterns = [
+    'api.openai.com',
+    'chatgpt.com/backend-api',
+    'chat.openai.com/backend-api'
+  ];
   
-  if (contentType && !contentType.value?.includes("application/json")) {
-    return false;
-  }
-
-  return true;
+  return chatGPTPatterns.some(pattern => request.url.includes(pattern));
 }
-
-function parseSSEResponse(sseText) {
-  try {
-    console.log("[AI Session Live][CDP] Parsing SSE response...");
-    
-    // ChatGPT utilise le format SSE: data: {...}
-    const lines = sseText.split('\n');
-    let content = '';
-    
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const data = line.slice(6); // Remove "data: "
-        
-        // Ignorer les signaux de fin
-        if (data === '[DONE]') {
-          console.log("[AI Session Live][CDP] Stream termination marker found");
-          continue;
-        }
-        
-        try {
-          const parsed = JSON.parse(data);
-          console.log("[AI Session Live][CDP] SSE chunk parsed:", Object.keys(parsed));
-          
-          // Extraire le contenu selon différentes structures possibles
-          if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta) {
-            content += parsed.choices[0].delta.content || '';
-          } else if (parsed.content) {
-            content += parsed.content;
-          } else if (parsed.message && parsed.message.content) {
-            content += parsed.message.content;
-          } else if (parsed.delta && parsed.delta.content) {
-            content += parsed.delta.content;
-          } else if (parsed.text) {
-            content += parsed.text;
-          }
-        } catch (e) {
-          console.log("[AI Session Live][CDP] Non-JSON SSE data:", data.slice(0, 50));
-          // Si ce n'est pas du JSON, ajouter directement
-          if (data && data !== '[DONE]') {
-            content += data;
-          }
-        }
-      }
-    }
-    
-    const finalText = content.trim();
-    console.log("[AI Session Live][CDP] Final parsed text length:", finalText.length);
-    return finalText;
-  } catch (error) {
-    console.error("[AI Session Live][CDP] Error parsing SSE response:", error);
-    // Fallback: retourner le texte brut
-    return sseText;
-  }
-}
-
-async function sendCDPResponseToContent(tabId, text) {
-  const cdpSession = cdpSessions.get(tabId);
-  if (!cdpSession) return;
-
-  try {
-    console.log("[AI Session Live][CDP] SENDING RESPONSE - Tab:", tabId);
-    console.log("[AI Session Live][CDP] SENDING RESPONSE LENGTH:", text.length);
-
-    // Générer un ID de message unique
-    const messageId = `cdp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    cdpSession.messageId = messageId;
-
-    // Envoyer au content script
-    await chrome.tabs.sendMessage(tabId, {
-      type: "CDP_ASSISTANT_RESPONSE",
-      sessionId: cdpSession.sessionId,
-      tabId: tabId,
-      text: text,
-      messageId: messageId
-    });
-
-    cdpSession.state = CDP_STATE.SENT;
-    console.log("[AI Session Live][CDP] RESPONSE SENT");
-
-  } catch (error) {
-    console.error("[AI Session Live][CDP] Error sending response to content:", error);
-    cdpSession.state = CDP_STATE.COMPLETED; // Retenter plus tard
-  }
-}
-
-// ── Gestion du cycle de vie des onglets ───────────────────────
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (cdpSessions.has(tabId)) {
-    console.log("[AI Session Live][CDP] Tab closed, cleaning up - Tab:", tabId);
-    detachDebugger(tabId).catch(err => {
-      console.error("[AI Session Live][CDP] Error detaching on tab close:", err);
-    });
-  }
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Nettoyer si l'onglet navigue vers une autre page
-  if (changeInfo.status === "complete" && cdpSessions.has(tabId)) {
-    const url = tab.url?.toLowerCase();
-    if (!url.includes("chatgpt.com") && !url.includes("chat.openai.com")) {
-      console.log("[AI Session Live][CDP] Tab navigated away, detaching - Tab:", tabId);
-      detachDebugger(tabId).catch(err => {
-        console.error("[AI Session Live][CDP] Error detaching on navigation:", err);
-      });
-    }
-  }
-});
-
-// ── Notify content scripts when sharing is toggled from popup ──
-
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.active) {
-    const active = changes.active.newValue;
-    chrome.tabs.query({}, (tabs) => {
-      tabs.forEach((tab) => {
-        if (tab.id) {
-          chrome.tabs
-            .sendMessage(tab.id, {
-              type: active ? "START_CAPTURE" : "STOP_CAPTURE",
-            })
-            .catch(() => {});
-        }
-      });
-    });
-  }
-});
+*/
