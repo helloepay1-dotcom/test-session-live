@@ -1,9 +1,16 @@
 // Service worker — relaie les messages capturés vers l'API
 // CDP désactivé - l'extraction DOM fonctionne déjà pour ChatGPT, Claude et Gemini
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SEND_MESSAGE") {
     sendToApi(message.payload)
+      .then((result) => sendResponse({ success: true, result }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true; // async response
+  }
+
+  if (message.type === "POLL_MESSAGES") {
+    pollMessagesFromApi(message.payload, sender)
       .then((result) => sendResponse({ success: true, result }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
     return true; // async response
@@ -76,6 +83,34 @@ async function sendToApi(payload) {
   }
 
   return response.json();
+}
+
+async function pollMessagesFromApi(payload, sender) {
+  const { apiUrl, sessionId, userId } = payload;
+
+  const baseUrl = new URL(apiUrl);
+  const pollUrl =
+    `${baseUrl.protocol}//${baseUrl.host}/api/poll-messages` +
+    `?session_id=${encodeURIComponent(sessionId)}` +
+    `&user_id=${encodeURIComponent(userId)}`;
+
+  const response = await fetch(pollUrl);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Envoyer les messages au content script qui a demandé le polling
+  if (sender.tab?.id) {
+    chrome.tabs.sendMessage(sender.tab.id, {
+      type: "POLL_MESSAGES_RESULT",
+      messages: data.messages || []
+    });
+  }
+
+  return data;
 }
 
 // ── Chrome DevTools Protocol (CDP) Implementation ─────────

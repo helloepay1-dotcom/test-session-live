@@ -7,8 +7,10 @@
   "use strict";
 
   const DEBOUNCE_MS = 3000; // Augmenté pour éviter les doublons
+  const USER_DEBOUNCE_MS = 700; // Debounce pour capture utilisateur pendant la frappe
   const sentMessages = new Set();
   const pendingAssistant = new Map(); // element -> { timer, lastText, role }
+  const pendingUser = new Map(); // element -> { timer, text }
 
   let isCapturing = false;
   let config = {};
@@ -221,13 +223,31 @@
     const hash = getMessageHash(text, role);
 
     if (role === "utilisateur") {
-      if (sentMessages.has(hash)) return;
-      sentMessages.add(hash);
-      
-      // Marquer ce message comme "notre capture" pour éviter la boucle
-      ourCapturedMessages.add(hash);
-      
-      sendMessage(text, role);
+      // Debounce pour éviter d'envoyer chaque touche pendant la frappe
+      const existing = pendingUser.get(element);
+
+      if (existing) {
+        clearTimeout(existing.timer);
+      }
+
+      const entry = {
+        text,
+        timer: setTimeout(() => {
+          pendingUser.delete(element);
+
+          const finalHash = getMessageHash(entry.text, role);
+
+          if (sentMessages.has(finalHash)) return;
+          sentMessages.add(finalHash);
+
+          // Marquer ce message comme "notre capture" pour éviter la boucle
+          ourCapturedMessages.add(finalHash);
+
+          sendMessage(entry.text, role);
+        }, USER_DEBOUNCE_MS)
+      };
+
+      pendingUser.set(element, entry);
       return;
     }
 
@@ -349,6 +369,12 @@
       pollTimer = null;
     }
 
+    // Nettoyer les timers en attente
+    pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
+    pendingAssistant.clear();
+    pendingUser.forEach((entry) => clearTimeout(entry.timer));
+    pendingUser.clear();
+
     pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
     pendingAssistant.clear();
   }
@@ -380,85 +406,15 @@
         `?session_id=${encodeURIComponent(config.sessionId)}` +
         `&user_id=${encodeURIComponent(currentUserId)}`;
 
-      console.log("[AI Session Live] POLLING URL:", pollUrl);
+      console.log("[AI Session Live] POLLING via background:", pollUrl);
 
-      fetch(pollUrl)
-        .then(response => {
-          console.log("[AI Session Live] POLLING STATUS:", response.status);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          return response.json();
-        })
-        .then(data => {
-
-          console.log("[AI Session Live] POLLING RESPONSE:", data);
-
-          if (!Array.isArray(data.messages)) {
-            console.log("[AI Session Live] NO MESSAGES ARRAY");
-            return;
-          }
-
-          console.log("[AI Session Live] MESSAGES COUNT:", data.messages.length);
-          
-          data.messages.forEach(message => {
-
-            console.log("[AI Session Live] MESSAGE RECEIVED:", message);
-
-            // Ignorer nos propres messages
-            if (
-              String(message.auteur_id) ===
-              String(currentUserId)
-            ) {
-              console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
-              return;
-          }
-
-          // Vérifier que le message appartient à la bonne session
-          if (String(message.session_id) !== String(config.sessionId)) {
-            console.log("[AI Session Live] SKIPPED (wrong session):", message.session_id, "!=", config.sessionId);
-            return;
-          }
-
-          // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
-          const messageHash = getMessageHash(message.contenu, message.role);
-          if (ourCapturedMessages.has(messageHash)) {
-            console.log("[AI Session Live] SKIPPED (our captured message - avoiding loop):", message.contenu);
-            return;
-          }
-
-          // Seulement les messages utilisateur
-          if (message.role !== "utilisateur") {
-            console.log("[AI Session Live] SKIPPED (role):", message.role);
-            return;
-          }
-
-          // Éviter les doublons
-          if (
-            lastProcessedMessageId &&
-            String(message.id) ===
-            String(lastProcessedMessageId)
-          ) {
-            console.log("[AI Session Live] SKIPPED (already processed):", message.id);
-            return;
-          }
-
-          console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
-
-          const success =
-            injectTextIntoChatGPT(message.contenu);
-
-          if (success) {
-            // Marquer le message comme envoyé côté serveur
-            markMessageAsSent(message.id);
-            console.log("[AI Session Live] MARKED AS SENT:", message.id);
-          }
-        });
-      })
-      .catch(error => {
-        console.error("[AI Session Live] POLLING ERROR:", error);
+      chrome.runtime.sendMessage({
+        type: "POLL_MESSAGES",
+        payload: {
+          apiUrl: config.apiUrl,
+          sessionId: config.sessionId,
+          userId: currentUserId
+        }
       });
     });
   }
@@ -564,7 +520,7 @@
     return null;
   }
 
-  function injectTextIntoChatGPT(text) {
+  function injectTextIntoAI(text) {
     const platform = getPlatform();
     const composer = findAIComposer();
 
@@ -897,12 +853,18 @@
     isCapturing = false;
     stopObserver();
     
-    // Nettoyer les sets
+    // Nettoyer les sets et maps
     sentMessages.clear();
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
     lastAssistantText = "";
+    
+    // Nettoyer les timers en attente
+    pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
+    pendingAssistant.clear();
+    pendingUser.forEach((entry) => clearTimeout(entry.timer));
+    pendingUser.clear();
     
     // CDP désactivé - l'extraction DOM fonctionne déjà
     /*
@@ -941,14 +903,14 @@ async function getCurrentTabId() {
     if (message.type === "STOP_CAPTURE") stopCapture();
     
     if (message.type === "INJECT_TEXT") {
-      injectTextIntoChatGPT(message.text);
+      injectTextIntoAI(message.text);
     }
     
     if (message.type === "TEST_INJECTION") {
       // Test manuel avec logs détaillés
       console.log("[AI Session Live] 🧪 Test d'injection manuel");
       console.log("[AI Session Live] 🧪 Platform:", getPlatform());
-      const result = injectTextIntoChatGPT("TEST MULTIPLAYER");
+      const result = injectTextIntoAI("TEST MULTIPLAYER");
       console.log("[AI Session Live] 🧪 Résultat test:", result);
     }
     
@@ -973,4 +935,60 @@ async function getCurrentTabId() {
       stopCapture();
     }
   });
+
+  // Écouter les résultats de polling depuis background.js
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type !== "POLL_MESSAGES_RESULT") {
+      return;
+    }
+
+    const messages = Array.isArray(message.messages) ? message.messages : [];
+
+    console.log("[AI Session Live] POLL RESULT:", messages.length, "messages");
+
+    messages.forEach(handlePolledMessage);
+  });
+
+  function handlePolledMessage(message) {
+    // Ignorer nos propres messages
+    if (String(message.auteur_id) === String(currentUserId)) {
+      console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
+      return;
+    }
+
+    // Vérifier que le message appartient à la bonne session
+    if (String(message.session_id) !== String(config.sessionId)) {
+      console.log("[AI Session Live] SKIPPED (wrong session):", message.session_id, "!=", config.sessionId);
+      return;
+    }
+
+    // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
+    const messageHash = getMessageHash(message.contenu, message.role);
+    if (ourCapturedMessages.has(messageHash)) {
+      console.log("[AI Session Live] SKIPPED (our captured message - avoiding loop):", message.contenu);
+      return;
+    }
+
+    // Seulement les messages utilisateur
+    if (message.role !== "utilisateur") {
+      console.log("[AI Session Live] SKIPPED (role):", message.role);
+      return;
+    }
+
+    // Éviter les doublons
+    if (lastProcessedMessageId && String(message.id) === String(lastProcessedMessageId)) {
+      console.log("[AI Session Live] SKIPPED (already processed):", message.id);
+      return;
+    }
+
+    console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
+
+    const success = injectTextIntoAI(message.contenu);
+
+    if (success) {
+      // Marquer le message comme envoyé côté serveur
+      markMessageAsSent(message.id);
+      console.log("[AI Session Live] MARKED AS SENT:", message.id);
+    }
+  }
 })();
