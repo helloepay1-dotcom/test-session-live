@@ -137,22 +137,12 @@
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
-    // Gemini user messages - sélecteurs ciblés pour les messages envoyés (pas l'input actuel)
-    const userSelectors = [
-      "[data-test-id='user-turn']",
-      ".user-message",
-      ".model-input-user-query",
-      ".qe-user-query",
-      "[data-test-id*='user']"
-    ];
-
-    userSelectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach((el) => {
+    // Gemini user messages - sélecteurs originaux plus larges
+    document
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container, .user-input, .query-text, .input-area")
+      .forEach((el) => {
         // Ignorer si c'est dans un élément déjà vu (éviter les doublons)
         if (seenElements.has(el)) return;
-        
-        // Ignorer si c'est l'input actuel (vérifier s'il est contenteditable)
-        if (el.querySelector('[contenteditable="true"]')) return;
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -161,24 +151,16 @@
           seenElements.add(el);
         }
       });
-    });
 
-    // Gemini assistant messages - sélecteurs ciblés et déduplication
-    const assistantSelectors = [
-      "[data-test-id='model-turn']",
-      ".model-response",
-      ".response-content",
-      ".model-annotation",
-      "[data-test-id*='model']"
-    ];
-
-    assistantSelectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach((el) => {
+    // Gemini assistant messages - sélecteurs originaux plus larges
+    document
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container, .response-text, .gemini-response, .ai-response")
+      .forEach((el) => {
         // Ignorer si c'est dans un élément déjà vu
         if (seenElements.has(el)) return;
         
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container") || el.closest(".user-input")) return;
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -187,13 +169,12 @@
           seenElements.add(el);
         }
       });
-    });
 
     // Fallback: Try generic message containers
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .input-wrapper, .output-wrapper")
         .forEach((el, i) => {
           if (seenElements.has(el)) return;
           
@@ -611,11 +592,10 @@
       
       console.log("[AI Session Live] ✅ Injection contenteditable (", platform, ")");
       
-      // Laisser le framework mettre à jour son état (délai augmenté pour Gemini)
-      const delay = platform === "gemini" ? 800 : 300;
+      // Laisser le framework mettre à jour son état
       setTimeout(() => {
         sendMessageButton();
-      }, delay);
+      }, 300);
       
       return true;
     }
@@ -680,8 +660,9 @@
       'button[aria-label="Send message"]',
       'button[aria-label*="Send"]',
       'button[type="submit"]',
-      'button[aria-label*="Submit"]',
-      'button[class*="send"]'
+      'button svg[data-icon="send"]',
+      'button[class*="send"]',
+      'button:has(svg)'
     ];
 
     // Sélecteurs spécifiques pour Claude
@@ -689,10 +670,8 @@
       'button[aria-label="Send message"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
-      'button[aria-label*="Submit"]',
-      'button[class*="send"]',
-      'div[role="button"][aria-label*="Send"]',
-      'div[role="button"][aria-label*="Submit"]'
+      'button:has(svg)',
+      'button[class*="send"]'
     ];
 
     // Sélecteurs spécifiques pour Gemini
@@ -702,13 +681,13 @@
       'button[aria-label*="Envoyer"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
-      'button[aria-label*="Submit"]',
-      'button[aria-label*="submit"]',
-      'div[role="button"][aria-label*="send"]',
-      'div[role="button"][aria-label*="Envoyer"]',
-      'div[role="button"][aria-label*="Submit"]',
+      'button:has(svg[data-icon="send"])',
+      'button:has(svg)',
       'button[class*="send"]',
-      'div[role="button"][class*="send"]'
+      'button:has([class*="send"])',
+      'button svg',
+      'div[role="button"][class*="send"]',
+      'div[role="button"]:has(svg)'
     ];
 
     let selectors;
