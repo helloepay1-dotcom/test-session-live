@@ -137,12 +137,15 @@
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
-    // Gemini user messages - sélecteurs originaux plus larges
+    // Gemini user messages - sélecteurs plus précis, exclure le champ de saisie actuel
     document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user'], .input-container, .user-input, .query-text, .input-area")
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user']")
       .forEach((el) => {
         // Ignorer si c'est dans un élément déjà vu (éviter les doublons)
         if (seenElements.has(el)) return;
+        
+        // Ignorer les éléments contenteditable (champ de saisie actuel)
+        if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -152,15 +155,18 @@
         }
       });
 
-    // Gemini assistant messages - sélecteurs originaux plus larges
+    // Gemini assistant messages - sélecteurs plus précis
     document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content, .model-annotation, [data-test-id*='model'], .model-text, .output-container, .response-text, .gemini-response, .ai-response")
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .response-content, .model-annotation, [data-test-id*='model']")
       .forEach((el) => {
         // Ignorer si c'est dans un élément déjà vu
         if (seenElements.has(el)) return;
         
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']") || el.closest(".input-container") || el.closest(".user-input")) return;
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
+        
+        // Ignorer les éléments contenteditable
+        if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
@@ -170,13 +176,19 @@
         }
       });
 
-    // Fallback: Try generic message containers
+    // Fallback: Try generic message containers (exclure les input areas)
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .input-wrapper, .output-wrapper")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .output-wrapper")
         .forEach((el, i) => {
           if (seenElements.has(el)) return;
+          
+          // Ignorer les éléments liés à l'input
+          if (el.closest('.input-container') || el.closest('.user-input') || el.closest('.query-text') || el.closest('.input-area')) return;
+          
+          // Ignorer les éléments contenteditable
+          if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
           
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
@@ -595,7 +607,7 @@
       // Laisser le framework mettre à jour son état
       setTimeout(() => {
         sendMessageButton();
-      }, 300);
+      }, 800);
       
       return true;
     }
@@ -618,7 +630,7 @@
 
       setTimeout(() => {
         sendMessageButton();
-      }, 300);
+      }, 800);
 
       return true;
     }
@@ -641,7 +653,7 @@
 
       setTimeout(() => {
         sendMessageButton();
-      }, 300);
+      }, 800);
 
       return true;
     }
