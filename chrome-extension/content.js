@@ -446,35 +446,15 @@
   // ── Marquer un message comme envoyé côté serveur ──────────────
 
   function markMessageAsSent(messageId) {
-    const apiUrl = new URL(config.apiUrl);
-    const appUrl = `${apiUrl.protocol}//${apiUrl.host}`;
-
-    const markUrl = `${appUrl}/api/mark-message-sent`;
-
     console.log("[AI Session Live] MARKING MESSAGE AS SENT:", messageId);
 
-    fetch(markUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    chrome.runtime.sendMessage({
+      type: "MARK_MESSAGE_SENT",
+      payload: {
+        apiUrl: config.apiUrl,
         messageId: messageId,
         userId: currentUserId
-      })
-    })
-    .then(response => {
-      console.log("[AI Session Live] MARK MESSAGE STATUS:", response.status);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
       }
-      return response.json();
-    })
-    .then(data => {
-      console.log("[AI Session Live] MARK MESSAGE RESPONSE:", data);
-    })
-    .catch(error => {
-      console.error("[AI Session Live] MARK MESSAGE ERROR:", error);
     });
   }
 

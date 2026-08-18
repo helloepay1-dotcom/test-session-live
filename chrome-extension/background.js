@@ -16,6 +16,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async response
   }
 
+  if (message.type === "MARK_MESSAGE_SENT") {
+    markMessageAsSent(message.payload)
+      .then((result) => sendResponse({ success: true, result }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true; // async response
+  }
+
   if (message.type === "INJECT_INTERVENTION") {
     const interventionText = message.text;
     
@@ -38,27 +45,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     return true;
   }
-
-  // CDP handlers désactivés - l'extraction DOM fonctionne déjà
-  /*
-  if (message.type === "ATTACH_CDP") {
-    // Demande d'attachement CDP depuis content script
-    const { tabId, sessionId, config } = message.payload;
-    attachDebugger(tabId, sessionId, config)
-      .then(result => sendResponse({ success: true, result }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
-
-  if (message.type === "DETACH_CDP") {
-    // Demande de détachement CDP
-    const { tabId } = message.payload;
-    detachDebugger(tabId)
-      .then(result => sendResponse({ success: true, result }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
-  */
 });
 
 // ── API vers Vercel (existante) ─────────────────────────────
@@ -110,5 +96,33 @@ async function pollMessagesFromApi(payload, sender) {
     });
   }
 
+  return data;
+}
+
+async function markMessageAsSent(payload) {
+  const { apiUrl, messageId, userId } = payload;
+
+  const baseUrl = new URL(apiUrl);
+  const markUrl = `${baseUrl.protocol}//${baseUrl.host}/api/mark-message-sent`;
+
+  console.log("[AI Session Live][BG] MARKING MESSAGE AS SENT:", messageId);
+
+  const response = await fetch(markUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messageId: messageId,
+      userId: userId
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log("[AI Session Live][BG] MARK MESSAGE RESPONSE:", data);
   return data;
 }
