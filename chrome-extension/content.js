@@ -136,6 +136,7 @@
   function extractGeminiMessages() {
     const results = [];
     const seenElements = new Set();
+    const seenTexts = new Set(); // Pour éviter les doublons de texte
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
@@ -151,9 +152,18 @@
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
+          const textHash = `${text.slice(0, 100)}:${text.length}`;
+          
+          // Éviter les doublons de texte
+          if (seenTexts.has(textHash)) {
+            console.log("[AI Session Live] ⏭️ Skipping duplicate user text:", text.slice(0, 30));
+            return;
+          }
+          
           console.log("[AI Session Live] 📝 Gemini user message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "utilisateur" });
           seenElements.add(el);
+          seenTexts.add(textHash);
         }
       });
 
@@ -172,9 +182,18 @@
         
         const text = getCleanText(el);
         if (text && text.length > 1) {
+          const textHash = `${text.slice(0, 100)}:${text.length}`;
+          
+          // Éviter les doublons de texte
+          if (seenTexts.has(textHash)) {
+            console.log("[AI Session Live] ⏭️ Skipping duplicate assistant text:", text.slice(0, 30));
+            return;
+          }
+          
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "assistant" });
           seenElements.add(el);
+          seenTexts.add(textHash);
         }
       });
 
@@ -194,10 +213,15 @@
           
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
+          
+          const textHash = `${text.slice(0, 100)}:${text.length}`;
+          if (seenTexts.has(textHash)) return;
+          
           const role = i % 2 === 0 ? "utilisateur" : "assistant";
           console.log("[AI Session Live] 🔄 Fallback Gemini message:", role, text.slice(0, 30));
           results.push({ element: el, text, role });
           seenElements.add(el);
+          seenTexts.add(textHash);
         });
     }
 
