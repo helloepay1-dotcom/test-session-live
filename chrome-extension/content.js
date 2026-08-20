@@ -20,6 +20,11 @@
   let lastProcessedMessageId = null;
   let ourCapturedMessages = new Set(); // Pour éviter la boucle d'auto-injection
   let lastAssistantText = ""; // Pour le debugging de visibilité
+  
+  // Global deduplication sets to persist between function calls
+  let seenElements = new Set();
+  let seenTexts = new Set();
+  let lastExtractedHash = null; // Track last extracted message to avoid duplicates
 
   // ── Debugging visibility tracking ──────────────────────────
   
@@ -135,8 +140,6 @@
 
   function extractGeminiMessages() {
     const results = [];
-    const seenElements = new Set();
-    const seenTexts = new Set(); // Pour éviter les doublons de texte
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
@@ -648,17 +651,20 @@
 
     // Sélecteurs spécifiques pour Gemini
     const geminiSelectors = [
-      'button[aria-label="Send message"]',
-      'button[aria-label*="send"]',
       'button[aria-label*="Envoyer"]',
+      'button[aria-label*="envoyer"]',
+      'button[aria-label*="Send"]',
+      'button[aria-label*="send"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
+      'button.mdc-icon-button',
+      'button.mat-mdc-icon-button',
       'button:has(svg[data-icon="send"])',
       'button:has(svg)',
       'button[class*="send"]',
       'button:has([class*="send"])',
-      'button svg',
-      'div[role="button"][class*="send"]',
+      'div[role="button"][aria-label*="Envoyer"]',
+      'div[role="button"][aria-label*="Send"]',
       'div[role="button"]:has(svg)'
     ];
 
@@ -815,6 +821,11 @@
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
+    
+    // Nettoyer les sets de déduplication globaux pour la nouvelle session
+    seenElements.clear();
+    seenTexts.clear();
+    lastExtractedHash = null;
 
     console.log("[AI Session Live] ⚙️ Config finale:", {
       sessionId: config.sessionId,
@@ -846,6 +857,11 @@
     processedIds.clear();
     lastProcessedMessageId = null;
     lastAssistantText = "";
+    
+    // Nettoyer les sets de déduplication globaux
+    seenElements.clear();
+    seenTexts.clear();
+    lastExtractedHash = null;
     
     // Nettoyer les timers en attente
     pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
@@ -883,6 +899,12 @@
       const result = sendMessageButton();
       console.log("[AI Session Live] 🧪 Résultat test bouton:", result);
     }
+    
+    if (message.type === "POLL_MESSAGES_RESULT") {
+      const messages = Array.isArray(message.messages) ? message.messages : [];
+      console.log("[AI Session Live] POLL RESULT:", messages.length, "messages");
+      messages.forEach(handlePolledMessage);
+    }
   });
 
   // Auto-start if already active when page loads
@@ -896,19 +918,6 @@
       console.log("[AI Session Live] Signal de départ de session reçu");
       stopCapture();
     }
-  });
-
-  // Écouter les résultats de polling depuis background.js
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type !== "POLL_MESSAGES_RESULT") {
-      return;
-    }
-
-    const messages = Array.isArray(message.messages) ? message.messages : [];
-
-    console.log("[AI Session Live] POLL RESULT:", messages.length, "messages");
-
-    messages.forEach(handlePolledMessage);
   });
 
   function handlePolledMessage(message) {
@@ -937,7 +946,13 @@
       return;
     }
 
-    // Éviter les doublons
+    // Éviter les doublons par ID de message
+    if (processedIds.has(String(message.id))) {
+      console.log("[AI Session Live] SKIPPED (already processed ID):", message.id);
+      return;
+    }
+
+    // Éviter les doublons par contenu
     if (lastProcessedMessageId && String(message.id) === String(lastProcessedMessageId)) {
       console.log("[AI Session Live] SKIPPED (already processed):", message.id);
       return;
@@ -948,9 +963,15 @@
     const success = injectTextIntoAI(message.contenu);
 
     if (success) {
+      // Marquer ce message comme traité immédiatement pour éviter la boucle
+      processedIds.add(String(message.id));
+      lastProcessedMessageId = String(message.id);
+      
       // Marquer le message comme envoyé côté serveur
       markMessageAsSent(message.id);
       console.log("[AI Session Live] MARKED AS SENT:", message.id);
+    } else {
+      console.log("[AI Session Live] ❌ Injection failed, not marking as sent");
     }
   }
 })();
