@@ -5,6 +5,11 @@ const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+let browserClient: ReturnType<typeof createClient> | null = null;
+
 export function createBrowserClient() {
-  return createClient(supabaseUrl, supabaseKey);
+  if (!browserClient) {
+    browserClient = createClient(supabaseUrl, supabaseKey);
+  }
+  return browserClient;
 }
