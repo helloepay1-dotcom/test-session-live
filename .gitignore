@@ -1,0 +1,11 @@
+node_modules
+.vercel
+.env*
+.next
+dist
+build
+*.zip
+.DS_Store
+AI SESSION LIVE
+test session live
+setup-env.js
