@@ -95,10 +95,7 @@ function setupAutoSave() {
 async function stopCaptureAndReset() {
   await chrome.storage.local.set({ 
     active: false,
-    sessionId: "",
-    sessionUrl: "",
-    apiUrl: "",
-    apiKey: ""
+    sessionId: ""
   });
   setStatus(false);
   
@@ -115,11 +112,6 @@ async function stopCaptureAndReset() {
   if (sessionInfoDiv) {
     sessionInfoDiv.style.display = "none";
   }
-  
-  // Vider les champs d'entrée
-  sessionUrlInput.value = "";
-  apiUrlInput.value = "";
-  apiKeyInput.value = "";
 }
 
 async function loadSettings() {
@@ -132,24 +124,6 @@ async function loadSettings() {
     "userId",
   ]);
 
-  // Si l'extension est active, mais que nous n'avons pas de session valide, réinitialiser
-  if (data.active && (!data.sessionId || !data.sessionUrl)) {
-    console.log("[Popup] État invalide détecté - réinitialisation forcée");
-    await chrome.storage.local.set({
-      sessionUrl: "",
-      apiUrl: "",
-      apiKey: "",
-      sessionId: "",
-      userId: "",
-      active: false
-    });
-    sessionUrlInput.value = "";
-    apiUrlInput.value = "";
-    apiKeyInput.value = "";
-    setStatus(false);
-    return;
-  }
-
   // Utiliser les valeurs sauvegardées ou les défauts
   sessionUrlInput.value = data.sessionUrl || DEFAULTS.sessionUrl;
   apiUrlInput.value = data.apiUrl || DEFAULTS.apiUrl;
@@ -160,22 +134,11 @@ async function loadSettings() {
   if (data.sessionId && currentSessionId && data.sessionId !== currentSessionId) {
     console.log("[Popup] Incohérence détectée entre URL et sessionId stocké");
     // Réinitialiser automatiquement
-    await chrome.storage.local.set({
-      sessionUrl: "",
-      apiUrl: "",
-      apiKey: "",
-      sessionId: "",
-      userId: "",
-      active: false
-    });
-    sessionUrlInput.value = "";
-    apiUrlInput.value = "";
-    apiKeyInput.value = "";
+    await stopCaptureAndReset();
     setStatus(false);
-    return;
+  } else {
+    setStatus(!!data.active);
   }
-  
-  setStatus(!!data.active);
   
   // Afficher l'info de session actuelle
   const sessionInfoDiv = document.getElementById("currentSessionInfo");
@@ -281,14 +244,10 @@ document.getElementById("clearSessionBtn").addEventListener("click", async () =>
     await chrome.storage.local.set({
       sessionUrl: "",
       sessionId: "",
-      apiUrl: "",
-      apiKey: "",
       active: false
     });
     
     sessionUrlInput.value = "";
-    apiUrlInput.value = "";
-    apiKeyInput.value = "";
     setStatus(false);
     
     const sessionInfoDiv = document.getElementById("currentSessionInfo");
@@ -308,27 +267,3 @@ document.getElementById("clearSessionBtn").addEventListener("click", async () =>
 
 loadSettings();
 setupAutoSave();
-
-// Vérification périodique de cohérence
-setInterval(async () => {
-  const data = await chrome.storage.local.get(["active", "sessionId", "sessionUrl"]);
-  
-  if (data.active) {
-    // Si actif mais sans session valide, réinitialiser
-    if (!data.sessionId || !data.sessionUrl) {
-      console.log("[Popup] Vérification périodique: état invalide - réinitialisation");
-      await chrome.storage.local.set({
-        sessionUrl: "",
-        apiUrl: "",
-        apiKey: "",
-        sessionId: "",
-        userId: "",
-        active: false
-      });
-      sessionUrlInput.value = "";
-      apiUrlInput.value = "";
-      apiKeyInput.value = "";
-      setStatus(false);
-    }
-  }
-}, 5000); // Vérifier toutes les 5 secondes

@@ -1,15 +1,37 @@
 import { createClient } from "@supabase/supabase-js";
 
-export function createServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceKey =
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(supabaseUrl, serviceKey);
+function getSupabaseUrl() {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL!;
 }
 
-export function createServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-  return createClient(supabaseUrl, anonKey);
+function getPublishableKey() {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+function getSecretKey() {
+  return (
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
+
+/** Client côté serveur avec clé secrète (bypass RLS). */
+export function createServiceClient() {
+  const secretKey = getSecretKey();
+  if (secretKey) {
+    return createClient(getSupabaseUrl(), secretKey);
+  }
+  return createClient(getSupabaseUrl(), getPublishableKey());
+}
+
+/**
+ * Client pour les insertions API (ex: /api/receive-message).
+ * Utilise la clé publishable car les politiques RLS sont permissives
+ * et l'accès est protégé par API_SECRET_KEY.
+ */
+export function createApiClient() {
+  return createClient(getSupabaseUrl(), getPublishableKey());
 }

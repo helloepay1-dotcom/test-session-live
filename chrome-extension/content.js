@@ -6,11 +6,9 @@
 (function () {
   "use strict";
 
-  const DEBOUNCE_MS = 3000; // Augmenté pour éviter les doublons
-  const USER_DEBOUNCE_MS = 700; // Debounce pour capture utilisateur pendant la frappe
+  const DEBOUNCE_MS = 1500;
   const sentMessages = new Set();
   const pendingAssistant = new Map(); // element -> { timer, lastText, role }
-  const pendingUser = new Map(); // element -> { timer, text }
 
   let isCapturing = false;
   let config = {};
@@ -20,11 +18,6 @@
   let lastProcessedMessageId = null;
   let ourCapturedMessages = new Set(); // Pour éviter la boucle d'auto-injection
   let lastAssistantText = ""; // Pour le debugging de visibilité
-  
-  // Global deduplication sets to persist between function calls
-  let seenElements = new Set();
-  let seenTexts = new Set();
-  let lastExtractedHash = null; // Track last extracted message to avoid duplicates
 
   // ── Debugging visibility tracking ──────────────────────────
   
@@ -143,88 +136,41 @@
 
     console.log("[AI Session Live] 🔍 Extraction Gemini messages...");
 
-    // Gemini user messages - sélecteurs plus précis, exclure le champ de saisie actuel
+    // Gemini user messages
     document
-      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query, .qe-user-query, [data-test-id*='user']")
+      .querySelectorAll("[data-test-id='user-turn'], .user-message, .model-input-user-query")
       .forEach((el) => {
-        // Ignorer si c'est dans un élément déjà vu (éviter les doublons)
-        if (seenElements.has(el)) return;
-        
-        // Ignorer les éléments contenteditable (champ de saisie actuel)
-        if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
-        
         const text = getCleanText(el);
         if (text && text.length > 1) {
-          const textHash = `${text.slice(0, 100)}:${text.length}`;
-          
-          // Éviter les doublons de texte
-          if (seenTexts.has(textHash)) {
-            console.log("[AI Session Live] ⏭️ Skipping duplicate user text:", text.slice(0, 30));
-            return;
-          }
-          
           console.log("[AI Session Live] 📝 Gemini user message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "utilisateur" });
-          seenElements.add(el);
-          seenTexts.add(textHash);
         }
       });
 
-    // Gemini assistant messages - sélecteurs plus précis
+    // Gemini assistant messages
     document
-      .querySelectorAll("[data-test-id='model-turn'], .model-response, .response-content, .model-annotation, [data-test-id*='model']")
+      .querySelectorAll("[data-test-id='model-turn'], .model-response, .markdown, .response-content")
       .forEach((el) => {
-        // Ignorer si c'est dans un élément déjà vu
-        if (seenElements.has(el)) return;
-        
         // Avoid nested elements inside user messages
-        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message") || el.closest("[data-test-id*='user']")) return;
-        
-        // Ignorer les éléments contenteditable
-        if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
-        
+        if (el.closest("[data-test-id='user-turn']") || el.closest(".user-message")) return;
         const text = getCleanText(el);
         if (text && text.length > 1) {
-          const textHash = `${text.slice(0, 100)}:${text.length}`;
-          
-          // Éviter les doublons de texte
-          if (seenTexts.has(textHash)) {
-            console.log("[AI Session Live] ⏭️ Skipping duplicate assistant text:", text.slice(0, 30));
-            return;
-          }
-          
           console.log("[AI Session Live] 🤖 Gemini assistant message trouvé:", text.slice(0, 50));
           results.push({ element: el, text, role: "assistant" });
-          seenElements.add(el);
-          seenTexts.add(textHash);
         }
       });
 
-    // Fallback: Try generic message containers (exclure les input areas)
+    // Fallback: Try generic message containers
     if (results.length === 0) {
       console.log("[AI Session Live] ⚠️ Fallback extraction Gemini");
       document
-        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article, .response, .output-wrapper")
+        .querySelectorAll(".conversation-turn, .message-container, [class*='Turn'], article")
         .forEach((el, i) => {
-          if (seenElements.has(el)) return;
-          
-          // Ignorer les éléments liés à l'input
-          if (el.closest('.input-container') || el.closest('.user-input') || el.closest('.query-text') || el.closest('.input-area')) return;
-          
-          // Ignorer les éléments contenteditable
-          if (el.isContentEditable || el.closest('[contenteditable="true"]')) return;
-          
           const text = getCleanText(el);
           if (!text || text.length < 2) return;
-          
-          const textHash = `${text.slice(0, 100)}:${text.length}`;
-          if (seenTexts.has(textHash)) return;
-          
           const role = i % 2 === 0 ? "utilisateur" : "assistant";
           console.log("[AI Session Live] 🔄 Fallback Gemini message:", role, text.slice(0, 30));
           results.push({ element: el, text, role });
-          seenElements.add(el);
-          seenTexts.add(textHash);
         });
     }
 
@@ -250,31 +196,13 @@
     const hash = getMessageHash(text, role);
 
     if (role === "utilisateur") {
-      // Debounce pour éviter d'envoyer chaque touche pendant la frappe
-      const existing = pendingUser.get(element);
-
-      if (existing) {
-        clearTimeout(existing.timer);
-      }
-
-      const entry = {
-        text,
-        timer: setTimeout(() => {
-          pendingUser.delete(element);
-
-          const finalHash = getMessageHash(entry.text, role);
-
-          if (sentMessages.has(finalHash)) return;
-          sentMessages.add(finalHash);
-
-          // Marquer ce message comme "notre capture" pour éviter la boucle
-          ourCapturedMessages.add(finalHash);
-
-          sendMessage(entry.text, role);
-        }, USER_DEBOUNCE_MS)
-      };
-
-      pendingUser.set(element, entry);
+      if (sentMessages.has(hash)) return;
+      sentMessages.add(hash);
+      
+      // Marquer ce message comme "notre capture" pour éviter la boucle
+      ourCapturedMessages.add(hash);
+      
+      sendMessage(text, role);
       return;
     }
 
@@ -314,15 +242,7 @@
       return;
     }
 
-    // Vérification supplémentaire pour éviter la pollution entre sessions
-    const data = chrome.storage.local.get(["sessionId"]);
-    if (data.sessionId && data.sessionId !== config.sessionId) {
-      console.log("[AI Session Live] ❌ Session mismatch detected - stopping send");
-      stopCapture();
-      return;
-    }
-
-    console.log("[AI Session Live] 📤 Envoi message:", role, contenu.slice(0, 80) + "...", "userId:", currentUserId, "sessionId:", config.sessionId);
+    console.log("[AI Session Live] 📤 Envoi message:", role, contenu.slice(0, 80) + "...", "userId:", currentUserId);
 
     chrome.runtime.sendMessage({
       type: "SEND_MESSAGE",
@@ -396,12 +316,6 @@
       pollTimer = null;
     }
 
-    // Nettoyer les timers en attente
-    pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
-    pendingAssistant.clear();
-    pendingUser.forEach((entry) => clearTimeout(entry.timer));
-    pendingUser.clear();
-
     pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
     pendingAssistant.clear();
   }
@@ -433,31 +347,79 @@
         `?session_id=${encodeURIComponent(config.sessionId)}` +
         `&user_id=${encodeURIComponent(currentUserId)}`;
 
-      console.log("[AI Session Live] POLLING via background:", pollUrl);
+      console.log("[AI Session Live] POLLING URL:", pollUrl);
 
-      chrome.runtime.sendMessage({
-        type: "POLL_MESSAGES",
-        payload: {
-          apiUrl: config.apiUrl,
-          sessionId: config.sessionId,
-          userId: currentUserId
-        }
+      fetch(pollUrl)
+        .then(response => {
+          console.log("[AI Session Live] POLLING STATUS:", response.status);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          return response.json();
+        })
+        .then(data => {
+
+          console.log("[AI Session Live] POLLING RESPONSE:", data);
+
+          if (!Array.isArray(data.messages)) {
+            console.log("[AI Session Live] NO MESSAGES ARRAY");
+            return;
+          }
+
+          console.log("[AI Session Live] MESSAGES COUNT:", data.messages.length);
+          
+          data.messages.forEach(message => {
+
+            console.log("[AI Session Live] MESSAGE RECEIVED:", message);
+
+            // Ignorer nos propres messages
+            if (
+              String(message.auteur_id) ===
+              String(currentUserId)
+            ) {
+              console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
+              return;
+          }
+
+          // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
+          const messageHash = getMessageHash(message.contenu, message.role);
+          if (ourCapturedMessages.has(messageHash)) {
+            console.log("[AI Session Live] SKIPPED (our captured message - avoiding loop):", message.contenu);
+            return;
+          }
+
+          // Seulement les messages utilisateur
+          if (message.role !== "utilisateur") {
+            console.log("[AI Session Live] SKIPPED (role):", message.role);
+            return;
+          }
+
+          // Éviter les doublons
+          if (
+            lastProcessedMessageId &&
+            String(message.id) ===
+            String(lastProcessedMessageId)
+          ) {
+            console.log("[AI Session Live] SKIPPED (already processed):", message.id);
+            return;
+          }
+
+          console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
+
+          const success =
+            injectTextIntoChatGPT(message.contenu);
+
+          if (success) {
+            lastProcessedMessageId = message.id;
+            console.log("[AI Session Live] MARKED AS PROCESSED:", message.id);
+          }
+        });
+      })
+      .catch(error => {
+        console.error("[AI Session Live] POLLING ERROR:", error);
       });
-    });
-  }
-
-  // ── Marquer un message comme envoyé côté serveur ──────────────
-
-  function markMessageAsSent(messageId) {
-    console.log("[AI Session Live] MARKING MESSAGE AS SENT:", messageId);
-
-    chrome.runtime.sendMessage({
-      type: "MARK_MESSAGE_SENT",
-      payload: {
-        apiUrl: config.apiUrl,
-        messageId: messageId,
-        userId: currentUserId
-      }
     });
   }
 
@@ -485,10 +447,8 @@
     // Sélecteurs spécifiques pour Gemini
     const geminiSelectors = [
       'div[contenteditable="true"][data-testid="user-input"]',
-      'div[contenteditable="true"][data-placeholder*="Message"]',
+      'div[contenteditable="true"][data-placeholder="Message Gemini…"]',
       'div[contenteditable="true"][data-placeholder*="Enter"]',
-      'div[contenteditable="true"][role="textbox"]',
-      'div[contenteditable="true"][class*="input"]',
       'div[contenteditable="true"]',
       'textarea',
       'input[type="text"]'
@@ -527,23 +487,19 @@
     return null;
   }
 
-  function injectTextIntoAI(text) {
-    const platform = getPlatform();
+  function injectTextIntoChatGPT(text) {
     const composer = findAIComposer();
 
     if (!composer) {
       console.error(
-        "[AI Session Live] ❌ Compositeur introuvable pour",
-        platform
+        "[AI Session Live] ❌ Compositeur introuvable"
       );
       return false;
     }
 
     console.log(
       "[AI Session Live] 📝 Injection :",
-      text,
-      "platform:",
-      platform
+      text
     );
 
     composer.focus();
@@ -551,78 +507,84 @@
     // ─────────────────────────────────────────────
     // CAS 1 : contenteditable
     // ─────────────────────────────────────────────
-    if (composer.getAttribute("contenteditable") === "true") {
-      // Méthode modern pour Gemini et Claude
+
+    if (
+      composer.isContentEditable ||
+      composer.getAttribute("contenteditable") === "true"
+    ) {
+      // Sélectionner tout le contenu existant
       const selection = window.getSelection();
       const range = document.createRange();
+
       range.selectNodeContents(composer);
+
       selection.removeAllRanges();
       selection.addRange(range);
-      
-      composer.textContent = text;
-      
-      // Événements pour React/Gemini
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
-      composer.dispatchEvent(new Event("change", { bubbles: true }));
-      
-      console.log("[AI Session Live] ✅ Injection contenteditable (", platform, ")");
-      
-      // Laisser le framework mettre à jour son état
-      setTimeout(() => {
-        sendMessageButton();
-      }, 800);
-      
-      return true;
-    }
+
+      // Remplace le contenu en utilisant l'API d'édition du navigateur.
+      // Cela est généralement mieux reconnu par les éditeurs React
+      // que composer.textContent = text.
+      const inserted = document.execCommand(
+        "insertText",
+        false,
+        text
+      );
+
+      // Fallback si execCommand n'a pas fonctionné
+      if (!inserted) {
+        composer.textContent = text;
+
+        composer.dispatchEvent(
+          new InputEvent("input", {
+            bubbles: true,
+            inputType: "insertText",
+            data: text
+          })
+        );
+      }
+
+      // Vérification
+      console.log(
+        "[AI Session Live] Contenu actuel :",
+        composer.innerText
+      );
 
     // ─────────────────────────────────────────────
-    // CAS 2 : textarea (ChatGPT)
+    // CAS 2 : textarea
     // ─────────────────────────────────────────────
-    if (composer.tagName === "TEXTAREA") {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype,
+
+    } else if (composer instanceof HTMLTextAreaElement) {
+
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
         "value"
-      ).set;
+      )?.set;
 
-      nativeInputValueSetter.call(composer, text);
+      if (setter) {
+        setter.call(composer, text);
+      } else {
+        composer.value = text;
+      }
 
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
-      composer.dispatchEvent(new Event("change", { bubbles: true }));
+      composer.dispatchEvent(
+        new Event("input", {
+          bubbles: true
+        })
+      );
 
-      console.log("[AI Session Live] ✅ Injection textarea");
-
-      setTimeout(() => {
-        sendMessageButton();
-      }, 800);
-
-      return true;
+      composer.dispatchEvent(
+        new Event("change", {
+          bubbles: true
+        })
+      );
     }
 
-    // ─────────────────────────────────────────────
-    // CAS 3 : input type text
-    // ─────────────────────────────────────────────
-    if (composer.tagName === "INPUT" && composer.type === "text") {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value"
-      ).set;
+    // Laisser React/ChatGPT mettre à jour son état
+    setTimeout(() => {
+      sendMessageButton();
+    }, 300);
 
-      nativeInputValueSetter.call(composer, text);
-
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
-      composer.dispatchEvent(new Event("change", { bubbles: true }));
-
-      console.log("[AI Session Live] ✅ Injection input text");
-
-      setTimeout(() => {
-        sendMessageButton();
-      }, 800);
-
-      return true;
-    }
-
-    console.error("[AI Session Live] ❌ Type d'élément non supporté:", composer.tagName);
-    return false;
+    return true;
   }
 
   function sendMessageButton() {
@@ -651,21 +613,13 @@
 
     // Sélecteurs spécifiques pour Gemini
     const geminiSelectors = [
-      'button[aria-label*="Envoyer"]',
-      'button[aria-label*="envoyer"]',
-      'button[aria-label*="Send"]',
-      'button[aria-label*="send"]',
+      'button[aria-label="Send message"]',
       'button[data-testid="send-button"]',
       'button[type="submit"]',
-      'button.mdc-icon-button',
-      'button.mat-mdc-icon-button',
       'button:has(svg[data-icon="send"])',
       'button:has(svg)',
       'button[class*="send"]',
-      'button:has([class*="send"])',
-      'div[role="button"][aria-label*="Envoyer"]',
-      'div[role="button"][aria-label*="Send"]',
-      'div[role="button"]:has(svg)'
+      'button svg'
     ];
 
     let selectors;
@@ -682,31 +636,22 @@
 
     for (const selector of selectors) {
       try {
-        const elements = document.querySelectorAll(selector);
+        const buttons = document.querySelectorAll(selector);
         
-        for (const element of elements) {
-          // Ignorer les éléments SVG (pas des boutons)
-          if (element.tagName === 'SVG' || element.tagName === 'svg') continue;
-          
-          // Ignorer les éléments qui sont à l'intérieur d'un bouton (éviter de sélectionner un child)
-          if (element.closest('button') && element.tagName !== 'BUTTON') continue;
-          
+        for (const button of buttons) {
           if (
-            element &&
-            !element.disabled &&
-            element.getAttribute("aria-disabled") !== "true" &&
-            element.offsetParent !== null // Élément visible
+            button &&
+            !button.disabled &&
+            button.getAttribute("aria-disabled") !== "true" &&
+            button.offsetParent !== null // Bouton visible
           ) {
-            sendButton = element;
+            sendButton = button;
             foundSelector = selector;
             console.log(
               "[AI Session Live] ✅ Bouton trouvé:",
               selector,
               "platform:",
-              platform,
-              "element:",
-              element.tagName,
-              element.className
+              platform
             );
             break;
           }
@@ -788,12 +733,6 @@
       return;
     }
 
-    // Vérifier qu'on a une configuration valide
-    if (!data.sessionId || !data.apiUrl || !data.apiKey) {
-      console.log("[AI Session Live] ❌ Configuration invalide", data);
-      return;
-    }
-
     // Vérifier que l'URL de session correspond au sessionId stocké
     const currentUrl = window.location.href;
     const currentSessionId = currentUrl.match(/\/session\/([a-f0-9-]+)/i)?.[1];
@@ -806,6 +745,11 @@
     }
 
     console.log("[AI Session Live] 📦 Configuration chargée:", data);
+
+    if (!data.active) {
+      console.log("[AI Session Live] ❌ Capture non active, annulation");
+      return;
+    }
 
     config = {
       sessionId: data.sessionId,
@@ -821,11 +765,6 @@
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
-    
-    // Nettoyer les sets de déduplication globaux pour la nouvelle session
-    seenElements.clear();
-    seenTexts.clear();
-    lastExtractedHash = null;
 
     console.log("[AI Session Live] ⚙️ Config finale:", {
       sessionId: config.sessionId,
@@ -836,6 +775,20 @@
 
     isCapturing = true;
     startObserver();
+
+    // Demander l'attachement CDP pour capture en arrière-plan
+    if (chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: "ATTACH_CDP",
+        payload: {
+          tabId: await getCurrentTabId(),
+          sessionId: data.sessionId,
+          config: config
+        }
+      }).catch(err => {
+        console.log("[AI Session Live] CDP attach failed (normal if not supported):", err);
+      });
+    }
 
     console.log(
       "[AI Session Live] ✅ Capture démarrée —",
@@ -851,44 +804,52 @@
     isCapturing = false;
     stopObserver();
     
-    // Nettoyer les sets et maps
+    // Nettoyer les sets
     sentMessages.clear();
     ourCapturedMessages.clear();
     processedIds.clear();
     lastProcessedMessageId = null;
     lastAssistantText = "";
     
-    // Nettoyer les sets de déduplication globaux
-    seenElements.clear();
-    seenTexts.clear();
-    lastExtractedHash = null;
-    
-    // Nettoyer les timers en attente
-    pendingAssistant.forEach((entry) => clearTimeout(entry.timer));
-    pendingAssistant.clear();
-    pendingUser.forEach((entry) => clearTimeout(entry.timer));
-    pendingUser.clear();
-    
-    // Réinitialiser la configuration locale
-    config = {};
-    currentUserId = null;
+    // Détacher CDP si attaché
+    if (chrome.runtime && chrome.runtime.sendMessage) {
+      getCurrentTabId().then(tabId => {
+        if (tabId) {
+          chrome.runtime.sendMessage({
+            type: "DETACH_CDP",
+            payload: { tabId }
+          }).catch(err => {
+            console.log("[AI Session Live] CDP detach failed:", err);
+          });
+        }
+      });
+    }
     
     console.log("[AI Session Live] Capture arrêtée et sets nettoyés");
   }
+
+async function getCurrentTabId() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab?.id || null;
+  } catch {
+    return null;
+  }
+}
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "START_CAPTURE") startCapture();
     if (message.type === "STOP_CAPTURE") stopCapture();
     
     if (message.type === "INJECT_TEXT") {
-      injectTextIntoAI(message.text);
+      injectTextIntoChatGPT(message.text);
     }
     
     if (message.type === "TEST_INJECTION") {
       // Test manuel avec logs détaillés
       console.log("[AI Session Live] 🧪 Test d'injection manuel");
       console.log("[AI Session Live] 🧪 Platform:", getPlatform());
-      const result = injectTextIntoAI("TEST MULTIPLAYER");
+      const result = injectTextIntoChatGPT("TEST MULTIPLAYER");
       console.log("[AI Session Live] 🧪 Résultat test:", result);
     }
     
@@ -899,79 +860,10 @@
       const result = sendMessageButton();
       console.log("[AI Session Live] 🧪 Résultat test bouton:", result);
     }
-    
-    if (message.type === "POLL_MESSAGES_RESULT") {
-      const messages = Array.isArray(message.messages) ? message.messages : [];
-      console.log("[AI Session Live] POLL RESULT:", messages.length, "messages");
-      messages.forEach(handlePolledMessage);
-    }
   });
 
   // Auto-start if already active when page loads
   chrome.storage.local.get(["active"], (data) => {
     if (data.active) startCapture();
   });
-
-  // Écouter les messages de l'application web pour arrêter la capture
-  window.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "AI_SESSION_LEAVE") {
-      console.log("[AI Session Live] Signal de départ de session reçu");
-      stopCapture();
-    }
-  });
-
-  function handlePolledMessage(message) {
-    // Ignorer nos propres messages
-    if (String(message.auteur_id) === String(currentUserId)) {
-      console.log("[AI Session Live] SKIPPED (own message):", message.auteur_id, "==", currentUserId);
-      return;
-    }
-
-    // Vérifier que le message appartient à la bonne session
-    if (String(message.session_id) !== String(config.sessionId)) {
-      console.log("[AI Session Live] SKIPPED (wrong session):", message.session_id, "!=", config.sessionId);
-      return;
-    }
-
-    // Vérifier si c'est un message que NOUS avons capturé (boucle d'auto-injection)
-    const messageHash = getMessageHash(message.contenu, message.role);
-    if (ourCapturedMessages.has(messageHash)) {
-      console.log("[AI Session Live] SKIPPED (our captured message - avoiding loop):", message.contenu);
-      return;
-    }
-
-    // Seulement les messages utilisateur
-    if (message.role !== "utilisateur") {
-      console.log("[AI Session Live] SKIPPED (role):", message.role);
-      return;
-    }
-
-    // Éviter les doublons par ID de message
-    if (processedIds.has(String(message.id))) {
-      console.log("[AI Session Live] SKIPPED (already processed ID):", message.id);
-      return;
-    }
-
-    // Éviter les doublons par contenu
-    if (lastProcessedMessageId && String(message.id) === String(lastProcessedMessageId)) {
-      console.log("[AI Session Live] SKIPPED (already processed):", message.id);
-      return;
-    }
-
-    console.log("[AI Session Live] INJECTING MESSAGE FROM:", message.auteur_id, ":", message.contenu);
-
-    const success = injectTextIntoAI(message.contenu);
-
-    if (success) {
-      // Marquer ce message comme traité immédiatement pour éviter la boucle
-      processedIds.add(String(message.id));
-      lastProcessedMessageId = String(message.id);
-      
-      // Marquer le message comme envoyé côté serveur
-      markMessageAsSent(message.id);
-      console.log("[AI Session Live] MARKED AS SENT:", message.id);
-    } else {
-      console.log("[AI Session Live] ❌ Injection failed, not marking as sent");
-    }
-  }
 })();
