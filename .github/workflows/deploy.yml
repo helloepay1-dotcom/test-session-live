@@ -1,0 +1,25 @@
+name: Deploy to Vercel on push
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering Vercel deploy for commit ${GITHUB_SHA::7}..."
+          HTTP_CODE=$(curl -s -o /tmp/hook-response.txt -w "%{http_code}" -X POST "$VERCEL_DEPLOY_HOOK_URL")
+          echo "HTTP $HTTP_CODE"
+          cat /tmp/hook-response.txt
+          echo
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "::error::Deploy hook failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "✅ Vercel deployment triggered successfully"
