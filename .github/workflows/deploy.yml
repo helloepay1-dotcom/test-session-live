@@ -1,4 +1,4 @@
-name: Deploy to Vercel on push
+name: Deploy to Vercel
 
 on:
   push:
@@ -9,17 +9,22 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Vercel deploy hook
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy to Vercel (production)
         env:
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          echo "Triggering Vercel deploy for commit ${GITHUB_SHA::7}..."
-          HTTP_CODE=$(curl -s -o /tmp/hook-response.txt -w "%{http_code}" -X POST "$VERCEL_DEPLOY_HOOK_URL")
-          echo "HTTP $HTTP_CODE"
-          cat /tmp/hook-response.txt
-          echo
-          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
-            echo "::error::Deploy hook failed with HTTP $HTTP_CODE"
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Secret VERCEL_TOKEN is missing."
+            echo "::error::Create a token at https://vercel.com/ia-live/settings/tokens then add it in GitHub: Settings > Secrets and variables > Actions."
             exit 1
           fi
-          echo "✅ Vercel deployment triggered successfully"
+          echo "Deploying commit ${GITHUB_SHA::7} to Vercel production..."
+          npx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
