@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
-    const supabase = createServerClient();
+    const supabase = createApiClient();
 
     // Marquer l'intervention comme acceptée (car elle a été envoyée à ChatGPT)
     const { error } = await supabase

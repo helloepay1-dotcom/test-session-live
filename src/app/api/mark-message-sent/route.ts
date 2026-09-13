@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient, createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,9 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
-    const supabase = createServerClient();
+    // Client API (clé publique) : fonctionne via les politiques RLS
+    // permissives une fois supabase/fix-messages-update.sql exécuté
+    const supabase = createApiClient();
 
     // Marquer le message comme envoyé
     const { data, error } = await supabase

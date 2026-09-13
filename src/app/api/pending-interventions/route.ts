@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createApiClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    const supabase = createServerClient();
+    const supabase = createApiClient();
 
     // Récupérer les interventions en attente
     const { data: interventions, error } = await supabase
